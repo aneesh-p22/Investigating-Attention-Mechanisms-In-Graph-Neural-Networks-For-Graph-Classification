@@ -1,7 +1,7 @@
 import torch
 
 
-def split_dataset(dataset, train_ratio=0.8, val_ratio=0.1, seed=42)
+def split_dataset(dataset, train_ratio=0.8, val_ratio=0.1, seed=42):
     generator = torch.Generator().manual_seed(seed)
 
     indices = torch.randperm(
