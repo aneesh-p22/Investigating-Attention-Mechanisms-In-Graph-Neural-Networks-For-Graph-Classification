@@ -8,6 +8,7 @@ from src.models.gcn import GCN
 from src.training.trainer import train_model
 from src.evaluation.evaluate import evaluate
 from src.utils.seed import set_seed
+from src.utils.results import save_results
 
 
 dataset = load_dataset("MUTAG")
@@ -15,6 +16,7 @@ dataset = load_dataset("MUTAG")
 seeds = [0, 1, 2, 3, 4]
 
 test_accuracies = []
+results = []
 
 for seed in seeds:
     set_seed(seed)
@@ -62,6 +64,12 @@ for seed in seeds:
 
     test_accuracies.append(test_accuracy)
 
+    results.append({
+        "seed": seed,
+        "test_loss": test_loss,
+        "test_accuracy": test_accuracy
+    })
+
     print(
         f"Seed {seed}: "
         f"test_loss={test_loss:.4f}"
@@ -77,3 +85,8 @@ std_accuracy = test_accuracies.std().item()
 print()
 print(f"Mean test accuracy: {mean_accuracy:.4f}")
 print(f"Standard deviation: {std_accuracy:.4f}")
+
+save_results(
+    results,
+    "results/raw/gcn_mutag.csv"
+)
