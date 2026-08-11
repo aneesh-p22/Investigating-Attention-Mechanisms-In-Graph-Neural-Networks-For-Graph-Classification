@@ -16,6 +16,12 @@ dataset = load_dataset(CONFIG["dataset"])
 
 seeds = CONFIG["seeds"]
 
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+print("Device:", device)
+
 test_accuracies = []
 results = []
 
@@ -39,7 +45,7 @@ for seed in seeds:
         input_dim=dataset.num_features,
         hidden_dim=CONFIG["hidden_dim"],
         num_classes=dataset.num_classes
-    )
+    ).to(device)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -55,12 +61,15 @@ for seed in seeds:
         optimizer,
         criterion,
         epochs=CONFIG["epochs"],
+        device=device,
         verbose=False
     )
 
     test_loss, test_accuracy = evaluate(
-        model, test_loader,
-        criterion
+        model, 
+        test_loader,
+        criterion,
+        device
     )
 
     test_accuracies.append(test_accuracy)

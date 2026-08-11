@@ -1,7 +1,7 @@
 import torch
 
 
-def evaluate(model, loader, criterion):
+def evaluate(model, loader, criterion, device):
     model.eval()
 
     total_loss = 0
@@ -10,6 +10,8 @@ def evaluate(model, loader, criterion):
 
     with torch.no_grad():
         for batch in loader:
+            batch = batch.to(device)
+
             out = model(
                 batch.x,
                 batch.edge_index,

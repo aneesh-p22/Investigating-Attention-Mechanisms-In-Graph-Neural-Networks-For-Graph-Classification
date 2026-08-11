@@ -11,6 +11,7 @@ def train_model(
         optimizer,
         criterion,
         epochs,
+        device,
         verbose=True
 ):
     best_val_accuracy = 0
@@ -22,13 +23,15 @@ def train_model(
             model,
             train_loader,
             optimizer,
-            criterion
+            criterion,
+            device
         )
 
         val_loss, val_accuracy = evaluate(
             model,
             val_loader,
-            criterion
+            criterion,
+            device
         )
 
         if (
