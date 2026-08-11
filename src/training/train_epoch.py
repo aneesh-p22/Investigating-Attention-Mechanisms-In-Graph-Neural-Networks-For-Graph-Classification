@@ -1,9 +1,11 @@
-def train_epoch(model, loader, optimizer, criterion):
+def train_epoch(model, loader, optimizer, criterion, device):
     model.train()
 
     total_loss = 0
 
     for batch in loader:
+        batch = batch.to(device)
+
         optimizer.zero_grad()
 
         out = model(

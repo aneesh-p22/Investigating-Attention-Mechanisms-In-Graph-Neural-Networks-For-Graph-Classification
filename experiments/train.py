@@ -9,11 +9,12 @@ from src.training.trainer import train_model
 from src.evaluation.evaluate import evaluate
 from src.utils.seed import set_seed
 from src.utils.results import save_results
+from configs.gcn_mutag import CONFIG
 
 
-dataset = load_dataset("MUTAG")
+dataset = load_dataset(CONFIG["dataset"])
 
-seeds = [0, 1, 2, 3, 4]
+seeds = CONFIG["seeds"]
 
 test_accuracies = []
 results = []
@@ -31,12 +32,12 @@ for seed in seeds:
         train_idx,
         val_idx,
         test_idx,
-        batch_size=32
+        batch_size=CONFIG["batch_size"]
     )
 
     model = GCN(
         input_dim=dataset.num_features,
-        hidden_dim=32,
+        hidden_dim=CONFIG["hidden_dim"],
         num_classes=dataset.num_classes
     )
 
@@ -44,7 +45,7 @@ for seed in seeds:
 
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=0.001
+        lr=CONFIG["learning_rate"]
     )
 
     model = train_model(
@@ -53,7 +54,7 @@ for seed in seeds:
         val_loader,
         optimizer,
         criterion,
-        epochs=100,
+        epochs=CONFIG["epochs"],
         verbose=False
     )
 
