@@ -1,20 +1,42 @@
+import argparse
+
 import torch
 from torch import nn
+
+from configs.gcn_mutag import CONFIG as GCN_MUTAG_CONFIG
+from configs.gat_mutag import CONFIG as GAT_MUTAG_CONFIG
 
 from src.data.datasets import load_dataset
 from src.data.splits import split_dataset
 from src.data.loaders import create_loaders
-from src.models.gcn import GCN
+
+from src.models.factory import build_model
+
 from src.training.trainer import train_model
 from src.evaluation.evaluate import evaluate
+
 from src.utils.seed import set_seed
 from src.utils.results import save_results
-from configs.gcn_mutag import CONFIG
 
 
-dataset = load_dataset(CONFIG["dataset"])
+parser = argparse.ArgumentParser()
 
-seeds = CONFIG["seeds"]
+parser.add_argument(
+    "--config",
+    required=True,
+    choices=["gcn_mutag", "gat_mutag"]
+)
+
+args = parser.parse_args()
+
+
+configs = {
+    "gcn_mutag": GCN_MUTAG_CONFIG,
+    "gat_mutag": GAT_MUTAG_CONFIG
+}
+
+CONFIG = configs[args.config]
+
 
 device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
@@ -22,10 +44,14 @@ device = torch.device(
 
 print("Device:", device)
 
+
+dataset = load_dataset(CONFIG["dataset"])
+
 test_accuracies = []
 results = []
 
-for seed in seeds:
+
+for seed in CONFIG["seeds"]:
     set_seed(seed)
 
     train_idx, val_idx, test_idx = split_dataset(
@@ -41,10 +67,9 @@ for seed in seeds:
         batch_size=CONFIG["batch_size"]
     )
 
-    model = GCN(
-        input_dim=dataset.num_features,
-        hidden_dim=CONFIG["hidden_dim"],
-        num_classes=dataset.num_classes
+    model = build_model(
+        CONFIG,
+        dataset
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
@@ -66,7 +91,7 @@ for seed in seeds:
     )
 
     test_loss, test_accuracy = evaluate(
-        model, 
+        model,
         test_loader,
         criterion,
         device
@@ -82,7 +107,7 @@ for seed in seeds:
 
     print(
         f"Seed {seed}: "
-        f"test_loss={test_loss:.4f}"
+        f"test_loss={test_loss:.4f}, "
         f"test_accuracy={test_accuracy:.4f}"
     )
 
@@ -96,7 +121,8 @@ print()
 print(f"Mean test accuracy: {mean_accuracy:.4f}")
 print(f"Standard deviation: {std_accuracy:.4f}")
 
+
 save_results(
     results,
-    "results/raw/gcn_mutag.csv"
+    f"results/raw/{args.config}.csv"
 )
