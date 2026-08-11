@@ -1,4 +1,5 @@
 CONFIG = {
+    "model": "gcn",
     "dataset": "MUTAG",
     "hidden_dim": 32,
     "batch_size": 32,
