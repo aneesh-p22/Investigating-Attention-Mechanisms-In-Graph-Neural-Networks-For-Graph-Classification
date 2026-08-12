@@ -9,7 +9,10 @@ class GATv2(nn.Module):
             input_dim,
             hidden_dim,
             num_classes,
-            heads=4
+            heads=4,
+            attention_dropout=0.0,
+            negative_slope=0.2,
+            add_self_loops=True
     ):
         super().__init__()
 
@@ -22,14 +25,20 @@ class GATv2(nn.Module):
             input_dim,
             head_dim,
             heads=heads,
-            concat=True
+            concat=True,
+            dropout=attention_dropout,
+            negative_slope=negative_slope,
+            add_self_loops=add_self_loops
         )
 
         self.conv2 = GATv2Conv(
             hidden_dim,
             hidden_dim,
             heads=1,
-            concat=False
+            concat=False,
+            dropout=attention_dropout,
+            negative_slope=negative_slope,
+            add_self_loops=add_self_loops
         )
 
         self.classifier = nn.Linear(
