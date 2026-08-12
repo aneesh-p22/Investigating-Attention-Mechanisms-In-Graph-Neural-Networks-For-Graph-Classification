@@ -7,7 +7,7 @@ class GraphSAGE(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_classes):
         super().__init__()
 
-        self.conv = SAGEConv(
+        self.conv1 = SAGEConv(
             input_dim,
             hidden_dim
         )

@@ -1,5 +1,7 @@
 from src.models.gcn import GCN
 from src.models.gat import GAT
+from src.models.gin import GIN
+from src.models.graphsage import GraphSAGE
 
 
 def build_model(config, dataset):
@@ -18,6 +20,20 @@ def build_model(config, dataset):
             hidden_dim=config["hidden_dim"],
             num_classes=dataset.num_classes,
             heads=config["heads"]
+        )
+
+    if model_name == "gin":
+        return GIN(
+            input_dim=dataset.num_features,
+            hidden_dim=config["hidden_dim"],
+            num_classes=dataset.num_classes
+        )
+
+    if model_name == "graphsage":
+        return GraphSAGE(
+            input_dim=dataset.num_features,
+            hidden_dim=config["hidden_dim"],
+            num_classes=dataset.num_classes
         )
 
     raise ValueError(f"Unknown model: {model_name}")
