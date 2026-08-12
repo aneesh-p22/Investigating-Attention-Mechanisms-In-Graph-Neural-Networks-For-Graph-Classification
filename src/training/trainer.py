@@ -17,6 +17,7 @@ def train_model(
     best_val_accuracy = 0
     best_val_loss = float("inf")
     best_model_state = None
+    best_epoch = None
 
     for epoch in range(epochs):
         train_loss = train_epoch(
@@ -44,6 +45,7 @@ def train_model(
             best_val_accuracy = val_accuracy
             best_val_loss = val_loss
             best_model_state = copy.deepcopy(model.state_dict())
+            best_epoch = epoch + 1
 
         if verbose:
             print(
@@ -55,4 +57,10 @@ def train_model(
 
     model.load_state_dict(best_model_state)
 
-    return model
+    training_info = {
+    "best_epoch": best_epoch,
+    "best_val_accuracy": best_val_accuracy,
+    "best_val_loss": best_val_loss
+    }
+
+    return model, training_info

@@ -93,7 +93,7 @@ for seed in CONFIG["seeds"]:
         lr=CONFIG["learning_rate"]
     )
 
-    model = train_model(
+    model, training_info = train_model(
         model,
         train_loader,
         val_loader,
@@ -126,9 +126,14 @@ for seed in CONFIG["seeds"]:
     test_accuracies.append(test_accuracy)
 
     results.append({
-        "seed": seed,
-        "test_loss": test_loss,
-        "test_accuracy": test_accuracy
+    "model": CONFIG["model"],
+    "dataset": CONFIG["dataset"],
+    "seed": seed,
+    "best_epoch": training_info["best_epoch"],
+    "best_val_loss": training_info["best_val_loss"],
+    "best_val_accuracy": training_info["best_val_accuracy"],
+    "test_loss": test_loss,
+    "test_accuracy": test_accuracy
     })
 
     print(
