@@ -1,5 +1,7 @@
 import argparse
 
+import os
+
 import torch
 from torch import nn
 
@@ -88,6 +90,18 @@ for seed in CONFIG["seeds"]:
         epochs=CONFIG["epochs"],
         device=device,
         verbose=False
+    )
+
+    checkpoint_dir = f"results/checkpoints/{args.config}"
+
+    os.makedirs(
+        checkpoint_dir,
+        exist_ok=True
+    )
+
+    torch.save(
+        model.state_dict(),
+        f"{checkpoint_dir}/seed_{seed}.pt"
     )
 
     test_loss, test_accuracy = evaluate(

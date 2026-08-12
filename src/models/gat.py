@@ -26,9 +26,9 @@ class GAT(nn.Module):
         )
 
         self.conv2 = GATConv(
-            input_dim,
-            head_dim,
-            heads=heads,
+            hidden_dim,
+            hidden_dim,
+            heads=1,
             concat=True
         )
 
@@ -38,7 +38,7 @@ class GAT(nn.Module):
         )
 
     def forward(self, x, edge_index, batch):
-        x = self.conv(x, edge_index)
+        x = self.conv1(x, edge_index)
         x = torch.relu(x)
 
         x = self.conv2(x, edge_index)
