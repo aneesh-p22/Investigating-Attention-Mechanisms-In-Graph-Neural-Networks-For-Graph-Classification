@@ -7,6 +7,9 @@ from torch import nn
 
 from configs.gcn_mutag import CONFIG as GCN_MUTAG_CONFIG
 from configs.gat_mutag import CONFIG as GAT_MUTAG_CONFIG
+from configs.gin_mutag import CONFIG as GIN_MUTAG_CONFIG
+from configs.graphsage_mutag import CONFIG as GRAPHSAGE_MUTAG_CONFIG
+
 
 from src.data.datasets import load_dataset
 from src.data.splits import split_dataset
@@ -26,7 +29,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
     required=True,
-    choices=["gcn_mutag", "gat_mutag"]
+    choices=[
+    "gcn_mutag",
+    "gat_mutag",
+    "gin_mutag",
+    "graphsage_mutag"
+    ]
 )
 
 args = parser.parse_args()
@@ -34,7 +42,9 @@ args = parser.parse_args()
 
 configs = {
     "gcn_mutag": GCN_MUTAG_CONFIG,
-    "gat_mutag": GAT_MUTAG_CONFIG
+    "gat_mutag": GAT_MUTAG_CONFIG,
+    "gin_mutag": GIN_MUTAG_CONFIG,
+    "graphsage_mutag": GRAPHSAGE_MUTAG_CONFIG
 }
 
 CONFIG = configs[args.config]
