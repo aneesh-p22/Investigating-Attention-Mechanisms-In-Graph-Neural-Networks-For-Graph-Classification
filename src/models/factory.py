@@ -20,7 +20,10 @@ def build_model(config, dataset):
             input_dim=dataset.num_features,
             hidden_dim=config["hidden_dim"],
             num_classes=dataset.num_classes,
-            heads=config["heads"]
+            heads=config["heads"],
+            attention_dropout=config["attention_dropout"],
+            negative_slope=config["negative_slope"],
+            add_self_loops=config["add_self_loops"]
         )
 
     if model_name == "gin":
@@ -42,7 +45,10 @@ def build_model(config, dataset):
             input_dim=dataset.num_features,
             hidden_dim=config["hidden_dim"],
             num_classes=dataset.num_classes,
-            heads=config["heads"]
+            heads=config["heads"],
+            attention_dropout=config["attention_dropout"],
+            negative_slope=config["negative_slope"],
+            add_self_loops=config["add_self_loops"]
         )
 
     raise ValueError(f"Unknown model: {model_name}")

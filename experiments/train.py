@@ -129,9 +129,21 @@ for seed in CONFIG["seeds"]:
     "model": CONFIG["model"],
     "dataset": CONFIG["dataset"],
     "seed": seed,
+
+    "hidden_dim": CONFIG["hidden_dim"],
+    "batch_size": CONFIG["batch_size"],
+    "learning_rate": CONFIG["learning_rate"],
+    "epochs": CONFIG["epochs"],
+
+    "heads": CONFIG.get("heads"),
+    "attention_dropout": CONFIG.get("attention_dropout"),
+    "negative_slope": CONFIG.get("negative_slope"),
+    "add_self_loops": CONFIG.get("add_self_loops"),
+
     "best_epoch": training_info["best_epoch"],
     "best_val_loss": training_info["best_val_loss"],
     "best_val_accuracy": training_info["best_val_accuracy"],
+
     "test_loss": test_loss,
     "test_accuracy": test_accuracy
     })

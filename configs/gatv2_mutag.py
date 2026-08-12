@@ -3,6 +3,11 @@ CONFIG = {
     "dataset": "MUTAG",
     "hidden_dim": 32,
     "heads": 4,
+
+    "attention_dropout": 0.0,
+    "negative_slope": 0.2,
+    "add_self_loops": True,
+
     "batch_size": 32,
     "learning_rate": 0.001,
     "epochs": 100,
