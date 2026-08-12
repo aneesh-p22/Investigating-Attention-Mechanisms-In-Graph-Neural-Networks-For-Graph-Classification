@@ -70,6 +70,8 @@ for seed in CONFIG["seeds"]:
 
     train_idx, val_idx, test_idx = split_dataset(
         dataset,
+        train_ratio=CONFIG["train_ratio"],
+        val_ratio=CONFIG["val_ratio"],
         seed=seed
     )
 
@@ -129,6 +131,9 @@ for seed in CONFIG["seeds"]:
     "model": CONFIG["model"],
     "dataset": CONFIG["dataset"],
     "seed": seed,
+
+    "train_ratio": CONFIG["train_ratio"],
+    "val_ratio": CONFIG["val_ratio"],
 
     "hidden_dim": CONFIG["hidden_dim"],
     "batch_size": CONFIG["batch_size"],

@@ -4,6 +4,9 @@ CONFIG = {
     "hidden_dim": 32,
     "heads": 4,
 
+    "train_ratio": 0.8,
+    "val_ratio": 0.1,
+
     "attention_dropout": 0.0,
     "negative_slope": 0.2,
     "add_self_loops": True,
