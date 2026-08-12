@@ -9,7 +9,7 @@ from configs.gcn_mutag import CONFIG as GCN_MUTAG_CONFIG
 from configs.gat_mutag import CONFIG as GAT_MUTAG_CONFIG
 from configs.gin_mutag import CONFIG as GIN_MUTAG_CONFIG
 from configs.graphsage_mutag import CONFIG as GRAPHSAGE_MUTAG_CONFIG
-
+from configs.gatv2_mutag import CONFIG as GATV2_MUTAG_CONFIG
 
 from src.data.datasets import load_dataset
 from src.data.splits import split_dataset
@@ -33,7 +33,8 @@ parser.add_argument(
     "gcn_mutag",
     "gat_mutag",
     "gin_mutag",
-    "graphsage_mutag"
+    "graphsage_mutag",
+    "gatv2_mutag"
     ]
 )
 
@@ -44,7 +45,8 @@ configs = {
     "gcn_mutag": GCN_MUTAG_CONFIG,
     "gat_mutag": GAT_MUTAG_CONFIG,
     "gin_mutag": GIN_MUTAG_CONFIG,
-    "graphsage_mutag": GRAPHSAGE_MUTAG_CONFIG
+    "graphsage_mutag": GRAPHSAGE_MUTAG_CONFIG,
+    "gatv2_mutag": GATV2_MUTAG_CONFIG
 }
 
 CONFIG = configs[args.config]

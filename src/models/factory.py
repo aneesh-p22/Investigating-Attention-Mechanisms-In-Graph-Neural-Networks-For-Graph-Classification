@@ -2,6 +2,7 @@ from src.models.gcn import GCN
 from src.models.gat import GAT
 from src.models.gin import GIN
 from src.models.graphsage import GraphSAGE
+from src.models.gatv2 import GATv2
 
 
 def build_model(config, dataset):
@@ -34,6 +35,14 @@ def build_model(config, dataset):
             input_dim=dataset.num_features,
             hidden_dim=config["hidden_dim"],
             num_classes=dataset.num_classes
+        )
+
+    if model_name == "gatv2":
+        return GATv2(
+            input_dim=dataset.num_features,
+            hidden_dim=config["hidden_dim"],
+            num_classes=dataset.num_classes,
+            heads=config["heads"]
         )
 
     raise ValueError(f"Unknown model: {model_name}")
