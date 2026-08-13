@@ -2,8 +2,8 @@ CONFIG = {
     "model": "gin",
     "dataset": "MUTAG",
 
-    "train_ratio": 0.8,
-    "val_ratio": 0.1,
+    "num_folds": 10,
+    "inner_val_ratio": 0.1,
 
     "model_dropout": 0.0,
     "weight_decay": 0.0,

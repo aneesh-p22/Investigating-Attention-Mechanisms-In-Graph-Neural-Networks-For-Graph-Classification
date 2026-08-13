@@ -12,7 +12,11 @@ from configs.graphsage_mutag import CONFIG as GRAPHSAGE_MUTAG_CONFIG
 from configs.gatv2_mutag import CONFIG as GATV2_MUTAG_CONFIG
 
 from src.data.datasets import load_dataset
-from src.data.splits import split_dataset
+from src.data.splits import (
+    create_stratified_folds,
+    get_outer_fold_indices,
+    split_train_val
+    )
 from src.data.loaders import create_loaders
 
 from src.models.factory import build_model
@@ -67,110 +71,128 @@ results = []
 
 for split_seed in CONFIG["split_seeds"]:
 
-    train_idx, val_idx, test_idx = split_dataset(
+    folds = create_stratified_folds(
         dataset,
-        train_ratio=CONFIG["train_ratio"],
-        val_ratio=CONFIG["val_ratio"],
+        num_folds=CONFIG["num_folds"],
         seed=split_seed
     )
 
+    for test_fold in range(CONFIG["num_folds"]):
 
-    for training_seed in CONFIG["training_seeds"]:
-        set_seed(training_seed)
+        outer_train_idx, test_idx = get_outer_fold_indices(
+            folds,
+            test_fold=test_fold
+        )
 
-        train_loader, val_loader, test_loader = create_loaders(
+        train_idx, val_idx = split_train_val(
             dataset,
-            train_idx,
-            val_idx,
-            test_idx,
-            batch_size=CONFIG["batch_size"]
+            outer_train_idx,
+            val_ratio=CONFIG["inner_val_ratio"],
+            seed=split_seed
         )
 
-        model = build_model(
-            CONFIG,
-            dataset
-        ).to(device)
+        for training_seed in CONFIG["training_seeds"]:
+            set_seed(training_seed)
 
-        criterion = nn.CrossEntropyLoss()
+            train_loader, val_loader, test_loader = create_loaders(
+                dataset,
+                train_idx,
+                val_idx,
+                test_idx,
+                batch_size=CONFIG["batch_size"]
+            )
 
-        optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=CONFIG["learning_rate"],
-            weight_decay=CONFIG["weight_decay"]
-        )
+            model = build_model(
+                CONFIG,
+                dataset
+            ).to(device)
 
-        model, training_info = train_model(
-            model,
-            train_loader,
-            val_loader,
-            optimizer,
-            criterion,
-            epochs=CONFIG["epochs"],
-            device=device,
-            verbose=False
-        )
+            criterion = nn.CrossEntropyLoss()
 
-        checkpoint_dir = f"results/checkpoints/{args.config}"
+            optimizer = torch.optim.Adam(
+                model.parameters(),
+                lr=CONFIG["learning_rate"],
+                weight_decay=CONFIG["weight_decay"]
+            )
 
-        os.makedirs(
-            checkpoint_dir,
-            exist_ok=True
-        )
+            model, training_info = train_model(
+                model,
+                train_loader,
+                val_loader,
+                optimizer,
+                criterion,
+                epochs=CONFIG["epochs"],
+                device=device,
+                verbose=False
+            )
 
-        checkpoint_path = (
-            f"{checkpoint_dir}/"
-            f"split_{split_seed}_train_{training_seed}.pt"
-        )
+            checkpoint_dir = f"results/checkpoints/{args.config}"
 
-        torch.save(
-            model.state_dict(),
-            checkpoint_path
-        )
+            os.makedirs(
+                checkpoint_dir,
+                exist_ok=True
+            )
 
-        test_loss, test_accuracy = evaluate(
-            model,
-            test_loader,
-            criterion,
-            device
-        )
+            checkpoint_path = (
+                f"{checkpoint_dir}/"
+                f"split_{split_seed}_"
+                f"fold_{test_fold}_"
+                f"train_{training_seed}.pt"
+            )
 
-        test_accuracies.append(test_accuracy)
+            torch.save(
+                model.state_dict(),
+                checkpoint_path
+            )
 
-        results.append({
-            "model": CONFIG["model"],
-            "dataset": CONFIG["dataset"],
-            "split_seed": split_seed,
-            "training_seed": training_seed,
+            test_loss, test_accuracy = evaluate(
+                model,
+                test_loader,
+                criterion,
+                device
+            )
 
-            "train_ratio": CONFIG["train_ratio"],
-            "val_ratio": CONFIG["val_ratio"],
+            test_accuracies.append(test_accuracy)
 
-            "hidden_dim": CONFIG["hidden_dim"],
-            "batch_size": CONFIG["batch_size"],
-            "learning_rate": CONFIG["learning_rate"],
-            "epochs": CONFIG["epochs"],
+            results.append({
+                "model": CONFIG["model"],
+                "dataset": CONFIG["dataset"],
 
-            "model_dropout": CONFIG["model_dropout"],
-            "weight_decay": CONFIG["weight_decay"],
+                "split_seed": split_seed,
+                "test_fold": test_fold,
+                "training_seed": training_seed,
 
-            "heads": CONFIG.get("heads"),
-            "attention_dropout": CONFIG.get("attention_dropout"),
-            "negative_slope": CONFIG.get("negative_slope"),
-            "add_self_loops": CONFIG.get("add_self_loops"),
+                "num_folds": CONFIG["num_folds"],
+                "inner_val_ratio": CONFIG["inner_val_ratio"],
 
-            "best_epoch": training_info["best_epoch"],
-            "best_val_loss": training_info["best_val_loss"],
-            "best_val_accuracy": training_info["best_val_accuracy"],
+                "hidden_dim": CONFIG["hidden_dim"],
+                "batch_size": CONFIG["batch_size"],
+                "learning_rate": CONFIG["learning_rate"],
+                "epochs": CONFIG["epochs"],
 
-            "test_loss": test_loss,
-            "test_accuracy": test_accuracy
-        })
+                "model_dropout": CONFIG["model_dropout"],
+                "weight_decay": CONFIG["weight_decay"],
 
-        print(
-            f"Seed {split_seed}: "
-            f"test_loss={test_loss:.4f}, "
-            f"test_accuracy={test_accuracy:.4f}"
-        )
+                "heads": CONFIG.get("heads"),
+                "attention_dropout": CONFIG.get("attention_dropout"),
+                "negative_slope": CONFIG.get("negative_slope"),
+                "add_self_loops": CONFIG.get("add_self_loops"),
+
+                "best_epoch": training_info["best_epoch"],
+                "best_val_loss": training_info["best_val_loss"],
+                "best_val_accuracy": training_info["best_val_accuracy"],
+
+                "test_loss": test_loss,
+                "test_accuracy": test_accuracy
+            })
+
+            print(
+                f"Split {split_seed}, "
+                f"fold {test_fold}, "
+                f"training seed {training_seed}: "
+                f"test_loss={test_loss:.4f}, "
+                f"test_accuracy={test_accuracy:.4f}"
+            )
 
 
 test_accuracies = torch.tensor(test_accuracies)
