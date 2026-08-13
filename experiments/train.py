@@ -27,6 +27,7 @@ from src.evaluation.metrics import summarise_cross_validation
 
 from src.utils.seed import set_seed
 from src.utils.results import save_results
+from src.utils.model import count_trainable_parameters
 
 
 parser = argparse.ArgumentParser()
@@ -106,6 +107,14 @@ for split_seed in CONFIG["split_seeds"]:
                 CONFIG,
                 dataset
             ).to(device)
+
+            num_parameters = count_trainable_parameters(model)
+
+            if (split_seed == CONFIG["split_seeds"][0] 
+                and test_fold == 0 
+                and training_seed == CONFIG["training_seeds"][0]
+            ):
+                print("Trainable parameters:", num_parameters)
 
             criterion = nn.CrossEntropyLoss()
 
