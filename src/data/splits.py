@@ -101,3 +101,22 @@ def get_fold_indices(folds, test_fold, val_fold):
     train_idx = torch.cat(train_folds)
 
     return train_idx, val_idx, test_idx
+
+
+def get_outer_fold_indices(folds, test_fold):
+    num_folds = len(folds)
+
+    if test_fold < 0 or test_fold >= num_folds:
+        raise ValueError("test_fold is out of range")
+
+    test_idx = folds[test_fold]
+
+    train_folds = [
+        folds[i]
+        for i in range(num_folds)
+        if i != test_fold
+    ]
+
+    train_idx = torch.cat(train_folds)
+
+    return train_idx, test_idx
