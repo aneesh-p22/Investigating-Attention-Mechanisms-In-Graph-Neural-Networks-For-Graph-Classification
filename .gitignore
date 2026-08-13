@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python tooling / test caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PyTorch / model checkpoints
+*.pt
+*.pth
+*.ckpt
+
+# Downloaded datasets
+data/
+
+# Experiment checkpoints
+results/checkpoints/
+
+# Temporary experiment outputs
+results/raw/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
