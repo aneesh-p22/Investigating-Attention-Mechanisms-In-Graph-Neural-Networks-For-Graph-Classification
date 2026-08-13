@@ -65,103 +65,112 @@ test_accuracies = []
 results = []
 
 
-for seed in CONFIG["seeds"]:
-    set_seed(seed)
+for split_seed in CONFIG["split_seeds"]:
 
     train_idx, val_idx, test_idx = split_dataset(
         dataset,
         train_ratio=CONFIG["train_ratio"],
         val_ratio=CONFIG["val_ratio"],
-        seed=seed
+        seed=split_seed
     )
 
-    train_loader, val_loader, test_loader = create_loaders(
-        dataset,
-        train_idx,
-        val_idx,
-        test_idx,
-        batch_size=CONFIG["batch_size"]
-    )
 
-    model = build_model(
-        CONFIG,
-        dataset
-    ).to(device)
+    for training_seed in CONFIG["training_seeds"]:
+        set_seed(training_seed)
 
-    criterion = nn.CrossEntropyLoss()
+        train_loader, val_loader, test_loader = create_loaders(
+            dataset,
+            train_idx,
+            val_idx,
+            test_idx,
+            batch_size=CONFIG["batch_size"]
+        )
 
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=CONFIG["learning_rate"],
-        weight_decay=CONFIG["weight_decay"]
-    )
+        model = build_model(
+            CONFIG,
+            dataset
+        ).to(device)
 
-    model, training_info = train_model(
-        model,
-        train_loader,
-        val_loader,
-        optimizer,
-        criterion,
-        epochs=CONFIG["epochs"],
-        device=device,
-        verbose=False
-    )
+        criterion = nn.CrossEntropyLoss()
 
-    checkpoint_dir = f"results/checkpoints/{args.config}"
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=CONFIG["learning_rate"],
+            weight_decay=CONFIG["weight_decay"]
+        )
 
-    os.makedirs(
-        checkpoint_dir,
-        exist_ok=True
-    )
+        model, training_info = train_model(
+            model,
+            train_loader,
+            val_loader,
+            optimizer,
+            criterion,
+            epochs=CONFIG["epochs"],
+            device=device,
+            verbose=False
+        )
 
-    torch.save(
-        model.state_dict(),
-        f"{checkpoint_dir}/seed_{seed}.pt"
-    )
+        checkpoint_dir = f"results/checkpoints/{args.config}"
 
-    test_loss, test_accuracy = evaluate(
-        model,
-        test_loader,
-        criterion,
-        device
-    )
+        os.makedirs(
+            checkpoint_dir,
+            exist_ok=True
+        )
 
-    test_accuracies.append(test_accuracy)
+        checkpoint_path = (
+            f"{checkpoint_dir}/"
+            f"split_{split_seed}_train_{training_seed}.pt"
+        )
 
-    results.append({
-    "model": CONFIG["model"],
-    "dataset": CONFIG["dataset"],
-    "seed": seed,
+        torch.save(
+            model.state_dict(),
+            checkpoint_path
+        )
 
-    "train_ratio": CONFIG["train_ratio"],
-    "val_ratio": CONFIG["val_ratio"],
+        test_loss, test_accuracy = evaluate(
+            model,
+            test_loader,
+            criterion,
+            device
+        )
 
-    "hidden_dim": CONFIG["hidden_dim"],
-    "batch_size": CONFIG["batch_size"],
-    "learning_rate": CONFIG["learning_rate"],
-    "epochs": CONFIG["epochs"],
+        test_accuracies.append(test_accuracy)
 
-    "model_dropout": CONFIG["model_dropout"],
-    "weight_decay": CONFIG["weight_decay"],
+        results.append({
+            "model": CONFIG["model"],
+            "dataset": CONFIG["dataset"],
+            "split_seed": split_seed,
+            "training_seed": training_seed,
 
-    "heads": CONFIG.get("heads"),
-    "attention_dropout": CONFIG.get("attention_dropout"),
-    "negative_slope": CONFIG.get("negative_slope"),
-    "add_self_loops": CONFIG.get("add_self_loops"),
+            "train_ratio": CONFIG["train_ratio"],
+            "val_ratio": CONFIG["val_ratio"],
 
-    "best_epoch": training_info["best_epoch"],
-    "best_val_loss": training_info["best_val_loss"],
-    "best_val_accuracy": training_info["best_val_accuracy"],
+            "hidden_dim": CONFIG["hidden_dim"],
+            "batch_size": CONFIG["batch_size"],
+            "learning_rate": CONFIG["learning_rate"],
+            "epochs": CONFIG["epochs"],
 
-    "test_loss": test_loss,
-    "test_accuracy": test_accuracy
-    })
+            "model_dropout": CONFIG["model_dropout"],
+            "weight_decay": CONFIG["weight_decay"],
 
-    print(
-        f"Seed {seed}: "
-        f"test_loss={test_loss:.4f}, "
-        f"test_accuracy={test_accuracy:.4f}"
-    )
+            "heads": CONFIG.get("heads"),
+            "attention_dropout": CONFIG.get("attention_dropout"),
+            "negative_slope": CONFIG.get("negative_slope"),
+            "add_self_loops": CONFIG.get("add_self_loops"),
+
+            "best_epoch": training_info["best_epoch"],
+            "best_val_loss": training_info["best_val_loss"],
+            "best_val_accuracy": training_info["best_val_accuracy"],
+
+            "test_loss": test_loss,
+            "test_accuracy": test_accuracy
+        })
+
+        print(
+            f"Seed {split_seed}: "
+            f"test_loss={test_loss:.4f}, "
+            f"test_accuracy={test_accuracy:.4f}"
+        )
 
 
 test_accuracies = torch.tensor(test_accuracies)
