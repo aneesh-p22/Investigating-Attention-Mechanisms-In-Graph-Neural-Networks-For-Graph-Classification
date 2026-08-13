@@ -5,6 +5,9 @@ CONFIG = {
     "num_folds": 10,
     "inner_val_ratio": 0.1,
 
+    "split_seeds": [0],
+    "training_seeds": [0],
+
     "model_dropout": 0.0,
     "weight_decay": 0.0,
 

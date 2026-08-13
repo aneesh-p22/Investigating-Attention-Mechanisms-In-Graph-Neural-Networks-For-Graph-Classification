@@ -23,6 +23,7 @@ from src.models.factory import build_model
 
 from src.training.trainer import train_model
 from src.evaluation.evaluate import evaluate
+from src.evaluation.metrics import summarize_cross_validation
 
 from src.utils.seed import set_seed
 from src.utils.results import save_results
@@ -65,7 +66,6 @@ print("Device:", device)
 
 dataset = load_dataset(CONFIG["dataset"])
 
-test_accuracies = []
 results = []
 
 
@@ -152,8 +152,6 @@ for split_seed in CONFIG["split_seeds"]:
                 device
             )
 
-            test_accuracies.append(test_accuracy)
-
             results.append({
                 "model": CONFIG["model"],
                 "dataset": CONFIG["dataset"],
@@ -195,14 +193,24 @@ for split_seed in CONFIG["split_seeds"]:
             )
 
 
-test_accuracies = torch.tensor(test_accuracies)
-
-mean_accuracy = test_accuracies.mean().item()
-std_accuracy = test_accuracies.std().item()
+split_summaries, mean_accuracy, split_std = (
+    summarize_cross_validation(results)
+)
 
 print()
-print(f"Mean test accuracy: {mean_accuracy:.4f}")
-print(f"Standard deviation: {std_accuracy:.4f}")
+
+for summary in split_summaries:
+    print(
+        f"Split {summary['split_seed']}: "
+        f"mean_accuracy={summary['mean_accuracy']:.4f}, "
+        f"fold_std={summary['fold_std']:.4f}, "
+        f"average_training_seed_std="
+        f"{summary['average_training_seed_std']:.4f}"
+    )
+
+print()
+print(f"Overall mean accuracy: {mean_accuracy:.4f}")
+print(f"Split-to-split standard deviation: {split_std:.4f}")
 
 
 save_results(
