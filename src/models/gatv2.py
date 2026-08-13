@@ -10,6 +10,7 @@ class GATv2(nn.Module):
             hidden_dim,
             num_classes,
             heads=4,
+            model_dropout=0.0,
             attention_dropout=0.0,
             negative_slope=0.2,
             add_self_loops=True
@@ -41,6 +42,8 @@ class GATv2(nn.Module):
             add_self_loops=add_self_loops
         )
 
+        self.dropout = nn.Dropout(model_dropout)
+
         self.classifier = nn.Linear(
             hidden_dim,
             num_classes
@@ -49,9 +52,11 @@ class GATv2(nn.Module):
     def forward(self, x, edge_index, batch):
         x = self.conv1(x, edge_index)
         x = torch.relu(x)
+        x = self.dropout(x)
 
         x = self.conv2(x, edge_index)
         x = torch.relu(x)
+        x = self.dropout(x)
 
         x = global_mean_pool(x, batch)
 

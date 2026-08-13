@@ -8,6 +8,8 @@ CONFIG = {
     "val_ratio": 0.1,
 
     "attention_dropout": 0.0,
+    "model_dropout": 0.0,
+    "weight_decay": 0.0,
     "negative_slope": 0.2,
     "add_self_loops": True,
 

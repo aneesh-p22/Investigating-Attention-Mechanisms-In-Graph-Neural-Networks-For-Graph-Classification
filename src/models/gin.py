@@ -4,7 +4,11 @@ from torch_geometric.nn import GINConv, global_mean_pool
 
 
 class GIN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_classes):
+    def __init__(self, 
+                 input_dim, 
+                 hidden_dim, 
+                 num_classes,
+                 model_dropout=0.0):
         super().__init__()
 
         mlp1 = nn.Sequential(
@@ -29,6 +33,8 @@ class GIN(nn.Module):
             train_eps=True
         )
 
+        self.dropout = nn.Dropout(model_dropout)
+
         self.classifier = nn.Linear(
             hidden_dim,
             num_classes
@@ -37,9 +43,11 @@ class GIN(nn.Module):
     def forward(self, x, edge_index, batch):
         x = self.conv1(x, edge_index)
         x = torch.relu(x)
+        x = self.dropout(x)
 
         x = self.conv2(x, edge_index)
         x = torch.relu(x)
+        x = self.dropout(x)
 
         x = global_mean_pool(x, batch)
 

@@ -92,7 +92,8 @@ for seed in CONFIG["seeds"]:
 
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=CONFIG["learning_rate"]
+        lr=CONFIG["learning_rate"],
+        weight_decay=CONFIG["weight_decay"]
     )
 
     model, training_info = train_model(
@@ -139,6 +140,9 @@ for seed in CONFIG["seeds"]:
     "batch_size": CONFIG["batch_size"],
     "learning_rate": CONFIG["learning_rate"],
     "epochs": CONFIG["epochs"],
+
+    "model_dropout": CONFIG["model_dropout"],
+    "weight_decay": CONFIG["weight_decay"],
 
     "heads": CONFIG.get("heads"),
     "attention_dropout": CONFIG.get("attention_dropout"),

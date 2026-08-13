@@ -5,6 +5,9 @@ CONFIG = {
     "train_ratio": 0.8,
     "val_ratio": 0.1,
 
+    "model_dropout": 0.0,
+    "weight_decay": 0.0,
+
     "hidden_dim": 32,
     "batch_size": 32,
     "learning_rate": 0.001,

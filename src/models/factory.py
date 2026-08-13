@@ -12,7 +12,8 @@ def build_model(config, dataset):
         return GCN(
             input_dim=dataset.num_features,
             hidden_dim=config["hidden_dim"],
-            num_classes=dataset.num_classes
+            num_classes=dataset.num_classes,
+            model_dropout=config["model_dropout"]
         )
 
     if model_name == "gat":
@@ -21,6 +22,7 @@ def build_model(config, dataset):
             hidden_dim=config["hidden_dim"],
             num_classes=dataset.num_classes,
             heads=config["heads"],
+            model_dropout=config["model_dropout"],
             attention_dropout=config["attention_dropout"],
             negative_slope=config["negative_slope"],
             add_self_loops=config["add_self_loops"]
@@ -30,14 +32,16 @@ def build_model(config, dataset):
         return GIN(
             input_dim=dataset.num_features,
             hidden_dim=config["hidden_dim"],
-            num_classes=dataset.num_classes
+            num_classes=dataset.num_classes,
+            model_dropout=config["model_dropout"]
         )
 
     if model_name == "graphsage":
         return GraphSAGE(
             input_dim=dataset.num_features,
             hidden_dim=config["hidden_dim"],
-            num_classes=dataset.num_classes
+            num_classes=dataset.num_classes,
+            model_dropout=config["model_dropout"]
         )
 
     if model_name == "gatv2":
@@ -46,6 +50,7 @@ def build_model(config, dataset):
             hidden_dim=config["hidden_dim"],
             num_classes=dataset.num_classes,
             heads=config["heads"],
+            model_dropout=config["model_dropout"],
             attention_dropout=config["attention_dropout"],
             negative_slope=config["negative_slope"],
             add_self_loops=config["add_self_loops"]
