@@ -120,3 +120,56 @@ def get_outer_fold_indices(folds, test_fold):
     train_idx = torch.cat(train_folds)
 
     return train_idx, test_idx
+
+
+def split_train_val(
+        dataset,
+        indices,
+        val_ratio=0.1,
+        seed=42
+):
+    generator = torch.Generator().manual_seed(seed)
+
+    indices = torch.as_tensor(
+        indices,
+        dtype=torch.long
+    )
+
+    labels = torch.tensor([
+        dataset[i].y.item()
+        for i in indices
+    ])
+
+    train_idx = []
+    val_idx = []
+
+    for class_label in labels.unique():
+        class_positions = torch.where(
+            labels == class_label
+        )[0]
+
+        class_idx = indices[class_positions]
+
+        permutation = torch.randperm(
+            len(class_idx),
+            generator=generator
+        )
+
+        class_idx = class_idx[permutation]
+
+        val_size = int(
+            val_ratio * len(class_idx)
+        )
+
+        val_idx.append(
+            class_idx[:val_size]
+        )
+
+        train_idx.append(
+            class_idx[val_size:]
+        )
+
+    train_idx = torch.cat(train_idx)
+    val_idx = torch.cat(val_idx)
+
+    return train_idx, val_idx
