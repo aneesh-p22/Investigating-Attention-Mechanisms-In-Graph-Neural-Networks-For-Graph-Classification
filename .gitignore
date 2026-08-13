@@ -15,26 +15,27 @@ env/
 .coverage
 htmlcov/
 
-# IDE / editor
-.vscode/
+# VS Code
+.vscode/*
+!.vscode/launch.json
+
+# Other IDEs
 .idea/
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# PyTorch / model checkpoints
-*.pt
-*.pth
-*.ckpt
-
 # Downloaded datasets
 data/
 
-# Experiment checkpoints
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
 results/checkpoints/
 
-# Temporary experiment outputs
+# Raw experiment outputs
 results/raw/
 
 # Logs
