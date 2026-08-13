@@ -23,7 +23,7 @@ from src.models.factory import build_model
 
 from src.training.trainer import train_model
 from src.evaluation.evaluate import evaluate
-from src.evaluation.metrics import summarize_cross_validation
+from src.evaluation.metrics import summarise_cross_validation
 
 from src.utils.seed import set_seed
 from src.utils.results import save_results
@@ -194,7 +194,7 @@ for split_seed in CONFIG["split_seeds"]:
 
 
 split_summaries, mean_accuracy, split_std = (
-    summarize_cross_validation(results)
+    summarise_cross_validation(results)
 )
 
 print()

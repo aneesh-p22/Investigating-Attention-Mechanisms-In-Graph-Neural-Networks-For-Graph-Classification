@@ -16,6 +16,6 @@ CONFIG = {
     "batch_size": 32,
     "learning_rate": 0.001,
     "epochs": 100,
-    "split_seeds": [0, 1, 2, 3, 4],
-    "training_seeds": [0, 1, 2, 3, 4]
+    "split_seeds": [0],
+    "training_seeds": [0]
 }
