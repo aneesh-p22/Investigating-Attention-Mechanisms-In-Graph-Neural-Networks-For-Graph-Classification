@@ -17,5 +17,10 @@ CONFIG = {
     "learning_rate": 0.001,
     "epochs": 100,
     "split_seeds": [0],
-    "training_seeds": [0]
+    "training_seeds": [0],
+
+    "search_space": {
+        "hidden_dim": [32, 64],
+        "learning_rate": [0.001, 0.0005]
+    }
 }

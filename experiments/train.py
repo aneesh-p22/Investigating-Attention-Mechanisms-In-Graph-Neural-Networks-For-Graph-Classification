@@ -29,6 +29,8 @@ from src.utils.seed import set_seed
 from src.utils.results import save_results
 from src.utils.model import count_trainable_parameters
 
+from src.tuning.select import select_hyperparameters
+
 
 parser = argparse.ArgumentParser()
 
@@ -68,6 +70,7 @@ print("Device:", device)
 dataset = load_dataset(CONFIG["dataset"])
 
 results = []
+tuning_results = []
 
 
 for split_seed in CONFIG["split_seeds"]:
@@ -92,6 +95,65 @@ for split_seed in CONFIG["split_seeds"]:
             seed=split_seed
         )
 
+
+
+
+
+        # Temporary: test hyperparameter selection on the first outer fold only
+        if test_fold != 0:
+            continue
+
+        set_seed(0)
+
+        tuning_train_loader, tuning_val_loader, _ = create_loaders(
+            dataset,
+            train_idx,
+            val_idx,
+            test_idx,
+            batch_size=CONFIG["batch_size"]
+        )
+
+        best_candidate, candidate_results = select_hyperparameters(
+            base_config=CONFIG,
+            dataset=dataset,
+            train_loader=tuning_train_loader,
+            val_loader=tuning_val_loader,
+            device=device,
+            tuning_seed=0
+        )
+
+        print(
+            f"Selected for split {split_seed}, fold {test_fold}:",
+            best_candidate
+        )
+
+        for candidate_result in candidate_results:
+            tuning_results.append({
+                "model": CONFIG["model"],
+                "dataset": CONFIG["dataset"],
+                "split_seed": split_seed,
+                "test_fold": test_fold,
+                "tuning_seed": 0,
+                **candidate_result
+            })
+
+        selected_config = CONFIG.copy()
+        selected_config.update(best_candidate)
+
+        selected_config = CONFIG.copy()
+        selected_config.update(best_candidate)
+
+        print("Candidate results:")
+
+        for candidate_result in candidate_results:
+            print(candidate_result)
+
+        print("Best candidate:", best_candidate)
+
+
+
+
+
         for training_seed in CONFIG["training_seeds"]:
             set_seed(training_seed)
 
@@ -104,23 +166,40 @@ for split_seed in CONFIG["split_seeds"]:
             )
 
             model = build_model(
-                CONFIG,
+                selected_config,
                 dataset
             ).to(device)
 
             num_parameters = count_trainable_parameters(model)
 
-            if (split_seed == CONFIG["split_seeds"][0] 
+
+
+
+
+            if training_seed == CONFIG["training_seeds"][0]:
+                print("Trainable parameters:", num_parameters)
+
+
+
+
+
+            """if (split_seed == CONFIG["split_seeds"][0] 
                 and test_fold == 0 
                 and training_seed == CONFIG["training_seeds"][0]
-            ):
+            ):"""
+
+            if training_seed == CONFIG["training_seeds"][0]:
                 print("Trainable parameters:", num_parameters)
+
+
+
+
 
             criterion = nn.CrossEntropyLoss()
 
             optimizer = torch.optim.Adam(
                 model.parameters(),
-                lr=CONFIG["learning_rate"],
+                lr=selected_config["learning_rate"],
                 weight_decay=CONFIG["weight_decay"]
             )
 
@@ -225,4 +304,9 @@ print(f"Split-to-split standard deviation: {split_std:.4f}")
 save_results(
     results,
     f"results/raw/{args.config}.csv"
+)
+
+save_results(
+    tuning_results,
+    f"results/raw/{args.config}_tuning.csv"
 )
