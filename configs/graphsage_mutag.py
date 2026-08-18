@@ -13,5 +13,12 @@ CONFIG = {
     "learning_rate": 0.001,
     "epochs": 100,
     "split_seeds": [0, 1, 2, 3, 4],
-    "training_seeds": [0, 1, 2, 3, 4]
+    "training_seeds": [0, 1, 2, 3, 4],
+
+    "search_space": {
+        "hidden_dim": [32, 64],
+        "learning_rate": [0.001, 0.0005],
+        "model_dropout": [0.0, 0.5],
+        "weight_decay": [0.0, 0.0005]
+    },
 }
