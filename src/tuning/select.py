@@ -24,6 +24,7 @@ def select_hyperparameters(
     best_val_loss = float("inf")
 
     candidate_results = []
+    seed_results = []
 
     for candidate in candidates:
         val_accuracies = []
@@ -58,6 +59,21 @@ def select_hyperparameters(
                 device=device,
                 verbose=False
             )
+
+            val_accuracy = training_info[
+                "best_val_accuracy"
+            ]
+
+            val_loss = training_info[
+                "best_val_loss"
+            ]
+
+            seed_results.append({
+                **candidate,
+                "tuning_seed": tuning_seed,
+                "val_accuracy": val_accuracy,
+                "val_loss": val_loss
+            })
 
             val_accuracies.append(
                 training_info["best_val_accuracy"]
@@ -94,4 +110,4 @@ def select_hyperparameters(
             best_val_accuracy = mean_val_accuracy
             best_val_loss = mean_val_loss
 
-    return best_candidate, candidate_results
+    return best_candidate, candidate_results, seed_results

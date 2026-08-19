@@ -71,6 +71,7 @@ dataset = load_dataset(CONFIG["dataset"])
 
 results = []
 tuning_results = []
+tuning_run_results = []
 
 
 for split_seed in CONFIG["split_seeds"]:
@@ -113,7 +114,7 @@ for split_seed in CONFIG["split_seeds"]:
             batch_size=CONFIG["batch_size"]
         )
 
-        best_candidate, candidate_results = select_hyperparameters(
+        best_candidate, candidate_results, seed_results = select_hyperparameters(
             base_config=CONFIG,
             dataset=dataset,
             train_loader=tuning_train_loader,
@@ -138,6 +139,17 @@ for split_seed in CONFIG["split_seeds"]:
                 ),
                 **candidate_result
             })
+
+
+            for seed_result in seed_results:
+                tuning_run_results.append({
+                    "model": CONFIG["model"],
+                    "dataset": CONFIG["dataset"],
+                    "split_seed": split_seed,
+                    "test_fold": test_fold,
+                    **seed_result
+                })
+
 
         selected_config = CONFIG.copy()
         selected_config.update(best_candidate)
@@ -311,4 +323,9 @@ save_results(
 save_results(
     tuning_results,
     f"results/raw/{args.config}_tuning.csv"
+)
+
+save_results(
+    tuning_run_results,
+    f"results/raw/{args.config}_tuning_runs.csv"
 )
