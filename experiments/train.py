@@ -119,7 +119,7 @@ for split_seed in CONFIG["split_seeds"]:
             train_loader=tuning_train_loader,
             val_loader=tuning_val_loader,
             device=device,
-            tuning_seed=0
+            tuning_seeds=CONFIG["tuning_seeds"]
         )
 
         print(
@@ -133,7 +133,9 @@ for split_seed in CONFIG["split_seeds"]:
                 "dataset": CONFIG["dataset"],
                 "split_seed": split_seed,
                 "test_fold": test_fold,
-                "tuning_seed": 0,
+                "num_tuning_seeds": len(
+                    CONFIG["tuning_seeds"]
+                ),
                 **candidate_result
             })
 

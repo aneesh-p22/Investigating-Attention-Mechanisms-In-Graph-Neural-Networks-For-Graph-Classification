@@ -13,7 +13,7 @@ def select_hyperparameters(
         train_loader,
         val_loader,
         device,
-        tuning_seed=0
+        tuning_seeds
 ):
     candidates = generate_grid(
         base_config["search_space"]
@@ -26,58 +26,72 @@ def select_hyperparameters(
     candidate_results = []
 
     for candidate in candidates:
-        set_seed(tuning_seed)
+        val_accuracies = []
+        val_losses = []
 
-        candidate_config = base_config.copy()
-        candidate_config.update(candidate)
+        for tuning_seed in tuning_seeds:
+            set_seed(tuning_seed)
 
-        model = build_model(
-            candidate_config,
-            dataset
-        ).to(device)
+            candidate_config = base_config.copy()
+            candidate_config.update(candidate)
 
-        criterion = nn.CrossEntropyLoss()
+            model = build_model(
+                candidate_config,
+                dataset
+            ).to(device)
 
-        optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=candidate_config["learning_rate"],
-            weight_decay=candidate_config["weight_decay"]
+            criterion = nn.CrossEntropyLoss()
+
+            optimizer = torch.optim.Adam(
+                model.parameters(),
+                lr=candidate_config["learning_rate"],
+                weight_decay=candidate_config["weight_decay"]
+            )
+
+            model, training_info = train_model(
+                model,
+                train_loader,
+                val_loader,
+                optimizer,
+                criterion,
+                epochs=candidate_config["epochs"],
+                device=device,
+                verbose=False
+            )
+
+            val_accuracies.append(
+                training_info["best_val_accuracy"]
+            )
+
+            val_losses.append(
+                training_info["best_val_loss"]
+            )
+
+        mean_val_accuracy = (
+            sum(val_accuracies)
+            / len(val_accuracies)
         )
 
-        model, training_info = train_model(
-            model,
-            train_loader,
-            val_loader,
-            optimizer,
-            criterion,
-            epochs=candidate_config["epochs"],
-            device=device,
-            verbose=False
+        mean_val_loss = (
+            sum(val_losses)
+            / len(val_losses)
         )
-
-        val_accuracy = training_info[
-            "best_val_accuracy"
-        ]
-
-        val_loss = training_info[
-            "best_val_loss"
-        ]
 
         candidate_results.append({
             **candidate,
-            "val_accuracy": val_accuracy,
-            "val_loss": val_loss
+            "mean_val_accuracy": mean_val_accuracy,
+            "mean_val_loss": mean_val_loss
         })
 
         if (
-            val_accuracy > best_val_accuracy
+            mean_val_accuracy > best_val_accuracy
             or (
-                val_accuracy == best_val_accuracy
-                and val_loss < best_val_loss
+                mean_val_accuracy == best_val_accuracy
+                and mean_val_loss < best_val_loss
             )
         ):
             best_candidate = candidate
-            best_val_accuracy = val_accuracy
-            best_val_loss = val_loss
+            best_val_accuracy = mean_val_accuracy
+            best_val_loss = mean_val_loss
 
     return best_candidate, candidate_results

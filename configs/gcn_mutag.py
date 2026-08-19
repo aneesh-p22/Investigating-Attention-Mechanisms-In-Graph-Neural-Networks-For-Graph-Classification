@@ -7,6 +7,7 @@ CONFIG = {
 
     "split_seeds": [0],
     "training_seeds": [0],
+    "tuning_seeds": [0, 1, 2],
 
     "model_dropout": 0.0,
     "weight_decay": 0.0,
