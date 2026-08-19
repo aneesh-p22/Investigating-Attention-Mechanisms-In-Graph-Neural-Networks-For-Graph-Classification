@@ -89,7 +89,7 @@ for split_seed in CONFIG["split_seeds"]:
             test_fold=test_fold
         )
 
-        train_idx, val_idx = split_train_val(
+        tuning_train_idx, tuning_val_idx = split_train_val(
             dataset,
             outer_train_idx,
             val_ratio=CONFIG["inner_val_ratio"],
@@ -108,8 +108,8 @@ for split_seed in CONFIG["split_seeds"]:
 
         tuning_train_loader, tuning_val_loader, _ = create_loaders(
             dataset,
-            train_idx,
-            val_idx,
+            tuning_train_idx,
+            tuning_val_idx,
             test_idx,
             batch_size=CONFIG["batch_size"]
         )
@@ -154,8 +154,12 @@ for split_seed in CONFIG["split_seeds"]:
         selected_config = CONFIG.copy()
         selected_config.update(best_candidate)
 
-        selected_config = CONFIG.copy()
-        selected_config.update(best_candidate)
+        assessment_train_idx, assessment_val_idx = split_train_val(
+            dataset,
+            outer_train_idx,
+            val_ratio=CONFIG["inner_val_ratio"],
+            seed=split_seed + 1000
+        )
 
         print("Candidate results:")
 
@@ -173,8 +177,8 @@ for split_seed in CONFIG["split_seeds"]:
 
             train_loader, val_loader, test_loader = create_loaders(
                 dataset,
-                train_idx,
-                val_idx,
+                assessment_train_idx,
+                assessment_train_idx,
                 test_idx,
                 batch_size=CONFIG["batch_size"]
             )
