@@ -120,7 +120,3 @@ The common epoch budget was informed by earlier validation experiments on the sa
 | [`report/`](report/) | Final report and references |
 | [`log/`](log/) | Research and development records |
 | [`archive/`](archive/) | Earlier implementations, not used by the final experiments |
-
-## Licence
-
-Released under the [MIT License](LICENSE). Third-party libraries and datasets retain their own licences.

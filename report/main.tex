@@ -1,39 +1,1074 @@
 \documentclass[11pt,a4paper]{article}
 
-\usepackage{amsmath}
-\usepackage{graphicx}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[british]{babel}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{tocloft}
+\usepackage{microtype}
+\usepackage{needspace}
 \usepackage[numbers]{natbib}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
 
-\title{Investigating Attention Mechanisms in Graph Neural Networks
-for Graph Classification}
-\author{Aneesh\\University of Leicester}
-\date{}
+\hypersetup{
+pdftitle={Investigating Attention Mechanisms in Graph Neural Networks for Graph Classification},
+pdfauthor={Aneesh Pyaraka},
+pdfsubject={EPSRC Summer Research Internship report, University of Leicester}
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5\baselineskip}
+\setlength{\belowcaptionskip}{5pt}
+\setcounter{tocdepth}{3}
+\clubpenalty=10000
+\widowpenalty=10000
+\interlinepenalty=10000
 
 \begin{document}
 
-\maketitle
+\pagenumbering{arabic}
+\pagestyle{plain}
+\hypersetup{pageanchor=false}
 
+\begin{titlepage}
+\centering
+\vspace*{\fill}
+{\LARGE\bfseries Investigating Attention Mechanisms in Graph Neural Networks for Graph Classification\par}
+\vspace{4cm}
+{\large Aneesh Pyaraka\\
+EPSRC Summer Research Internship\\
+Supervisor: Dr Furqan Aziz\\
+University of Leicester\par}
+\vspace*{\fill}
+\end{titlepage}
+\setcounter{page}{2}
+\hypersetup{pageanchor=true}
+
+\vspace*{\fill}
 \begin{abstract}
+\noindent
+Graph Attention Networks (GATs) learn feature-dependent relative weights for neighbouring nodes, but different aspects of attention may affect graph-classification performance in different ways. This study examined how a fixed representation width is divided among attention heads and how standard GAT compares with GATv2, which uses a more expressive attention scorer. It also investigated whether learning non-uniform attention weights improves performance over separately trained uniform attention, and how fitted models respond when their learned scoring is replaced without retraining. Experiments used MUTAG, PROTEINS and NCI1 within a common two-layer graph-classification pipeline and stratified five-fold cross-validation. Increasing first-layer head count at fixed total width produced no monotonic improvement in accuracy, and the head organisation with the largest observed mean differed across datasets. GATv2 did not show a consistent accuracy advantage over GAT. The benefit of learning non-uniform weights also varied across datasets. Separately trained uniform attention had the higher mean accuracy on MUTAG, the two conditions had similar mean accuracies on PROTEINS, and learned attention had its clearest advantage on NCI1. Fitted first-layer attention coefficients remained close to uniform on average, while second-layer departure from uniformity varied more across datasets. The largest effect of replacing learned scoring after fitting occurred on NCI1. Learned attention exceeded separately trained uniform attention by 1.2 percentage points, yet replacing learned scoring in both layers of the already fitted model reduced mean accuracy by 20.3 percentage points and changed 41.8\% of predictions. These results show why the predictive benefit of learning attention during training must be distinguished from how much an already fitted model depends on its learned scoring. More broadly, the findings show that attention-head organisation, scorer expressivity, coefficient non-uniformity, training-time predictive benefit and fitted-model dependence are distinct aspects of graph attention that require separate evaluation.
 \end{abstract}
+\vspace*{\fill}
 
+\clearpage
+\begingroup
+\setlength{\parskip}{0pt}
+\setlength{\cftbeforesecskip}{5pt}
+\setlength{\cftbeforesubsecskip}{1pt}
+\setlength{\cftbeforesubsubsecskip}{0.5pt}
+\setlength{\cftsecnumwidth}{2em}
+\setlength{\cftsubsecindent}{2em}
+\setlength{\cftsubsecnumwidth}{2.6em}
+\setlength{\cftsubsubsecindent}{4.6em}
+\setlength{\cftsubsubsecnumwidth}{3.2em}
+\tableofcontents
+\endgroup
+\clearpage
+
+
+
+
+
+
+\clearpage
 \section{Introduction}
 
-\section{Background and Related Work}
+Graphs provide a natural representation for data whose meaning depends not only on individual objects but also on the relationships between them. Molecules can be represented by atoms connected through bonds, while proteins can be represented through their structural components and connections. Social, biological and financial systems, among many other forms of data, can also be modelled as graphs~\cite{xu2019powerful}. Learning from such data therefore requires representations that capture both the information associated with individual nodes and the structure formed by their connections. Unlike data arranged on a regular grid, graphs can contain different numbers of nodes and have no fixed or intrinsically meaningful node ordering~\cite{hamilton2017inductive}.
 
+Predictions on graph-structured data can concern individual nodes, edges or entire graphs. Graph neural networks (GNNs) commonly learn node representations through repeated neighbourhood aggregation, often described as message passing~\cite{gilmer2017neural}, in which each node updates its representation using information from nearby nodes. Repeating this process allows a node representation to incorporate information from progressively larger neighbourhoods~\cite{xu2019powerful}. This project focuses on graph classification, where the final node representations are combined via a graph-level readout function to form a representation of the entire graph for prediction~\cite{gilmer2017neural}.
+
+A key architectural choice in a GNN is how information from a node's neighbourhood is aggregated. Different aggregation rules determine how neighbouring representations contribute to the updated representation and what information about the neighbourhood can be retained~\cite{xu2019powerful}. Graph Convolutional Networks (GCNs)~\cite{kipf2017gcn}, GraphSAGE~\cite{hamilton2017inductive}, and Graph Isomorphism Networks (GINs)~\cite{xu2019powerful} are established GNN architectures that differ in this respect. These differences in architecture influence the representations passed from one layer of the network to the next, and ultimately the information available for classification.
+
+Attention provides a way of making this aggregation process adaptive to the representations being processed. Graph Attention Networks (GATs)~\cite{velickovic2018gat} use a learned attention mechanism to assign relative weights to neighbouring nodes, allowing some neighbours to contribute more strongly than others when a node representation is updated. These weights are calculated from the representations of the nodes involved, rather than being determined solely by the graph structure or by a fixed aggregation rule. GATs can also use multiple attention heads in parallel, with each head learning its own attention parameters and producing a separate aggregation of the same neighbourhood before the head outputs are combined.
+
+The way a GAT calculates the relative weights assigned to neighbouring nodes can itself be changed. To determine the attention weights, the model first computes an attention score for each neighbour using an attention-scoring function~\cite{velickovic2018gat}. In standard GAT, this function restricts how the ranking of neighbouring nodes can vary between different receiving nodes. GATv2~\cite{brody2022attentive} modifies the scoring function so that this ranking can depend more fully on the receiving node, allowing a more flexible form of attention.
+
+\Needspace{21\baselineskip}
+These architectural differences raise broader questions about how attention affects graph-classification performance in practice. Greater flexibility in attention mechanisms does not necessarily imply better predictive performance, and learning unequal attention weights does not by itself establish their importance for classification or the extent to which a fitted model depends on them. This investigation examines attention through the following research questions:
+
+\medskip
+\noindent\textbf{RQ1:} How does dividing a fixed representation width across different numbers of attention heads affect graph-classification performance?
+
+\medskip
+\noindent\textbf{RQ2:} How does GATv2 compare with standard GAT for graph classification under a common experimental pipeline?
+
+\medskip
+\noindent\textbf{RQ3:} Does learning non-uniform attention weights improve graph-classification performance compared with separately trained uniform attention?
+
+\medskip
+\noindent\textbf{RQ4:} What attention-weight distributions are learned by fitted GAT models, and how does replacing their learned attention scoring with uniform scoring, without retraining, affect model behaviour?
+
+\medskip
+These questions are investigated on the MUTAG~\cite{debnath1991structure}, PROTEINS~\cite{borgwardt2005protein} and NCI1~\cite{wale2008comparison} graph-classification datasets within a common experimental framework. RQ1 examines how attention is organised across multiple heads while keeping the overall representation width fixed, whereas RQ2 considers whether the more flexible attention mechanism of GATv2 leads to different predictive performance from standard GAT. RQ3 then asks whether learning non-uniform neighbour weights is itself beneficial by comparing learned attention with separately trained uniform attention. Finally, RQ4 moves from training-time comparisons to already fitted models, examining the attention distributions they learn and how their predictions change when learned scoring is replaced without retraining. Together, these experiments separate head organisation, attention expressivity, learned non-uniform weighting and fitted-model dependence as related but distinct aspects of graph attention.
+
+
+
+
+
+
+\clearpage
+\section{Background}
+\label{sec:background}
+
+Graphs describe objects together with the relationships between them. In a molecular graph, for example, atoms are represented by nodes and chemical bonds by edges. Graphs can contain different numbers of nodes, and the numerical ordering of those nodes has no inherent meaning. A graph neural network must therefore combine information from variable-sized neighbourhoods without depending on an arbitrary ordering. For graph classification, the resulting node representations must also be combined into a representation of the whole graph.
+
+\subsection{Graphs and Graph Classification}
+\label{sec:graphs}
+
+\medskip
+\noindent\textbf{Definition (Graph).} A graph \(G=(V,E)\) consists of a set of vertices, or nodes, \(V\), and a set of edges \(E\) connecting them. In an undirected graph, an edge is an unordered pair \(\{i,j\}\).
+
+The graphs considered here are finite and undirected. Writing \(n=|V|\), the nodes can be indexed as \(V=\{1,\ldots,n\}\). The information associated with node \(i\) is represented by a feature vector \(\mathbf{x}_i\in\mathbb{R}^{F}\), where \(F\) is the number of input features. Placing these vectors in rows gives the feature matrix \(X\in\mathbb{R}^{n\times F}\), whose \(i\)th row is \(\mathbf{x}_i^\top\).
+
+\medskip
+\noindent\textbf{Definition (Neighbourhood).} The neighbourhood of node \(i\) contains the nodes adjacent to it:
+\[
+\mathcal{N}(i)=\{j\in V:\{i,j\}\in E\}.
+\]
+Including the node itself gives the self-inclusive neighbourhood
+\[
+\widetilde{\mathcal{N}}(i)=\mathcal{N}(i)\cup\{i\}.
+\]
+
+Connectivity can also be represented by an adjacency matrix \(A\in\{0,1\}^{n\times n}\). Its entry \(A_{ij}\) is one when nodes \(i\) and \(j\) are connected and zero otherwise. Since the edges are undirected, \(A=A^\top\). Self-connections added by a GNN layer are distinguished from the connections already present in the original graph.
+
+Graph classification assigns each graph a target label \(y_G\in\{0,\ldots,C-1\}\), where \(C\) is the number of classes. This label applies to the graph as a whole, whereas a node-classification target applies to an individual node. Categorical node labels may also form part of the input features, but these describe the nodes and are distinct from the graph-level target.
+
+Graphs of different sizes produce feature matrices with different numbers of rows. The order of these rows is arbitrary, provided that the node features and graph connectivity are reordered consistently. Such a change should reorder the node-level outputs in the same way while leaving the graph-level prediction unchanged. An \(n\times n\) permutation matrix \(P\) represents this change of order, transforming \((A,X)\) into \((PAP^\top,PX)\).
+
+\medskip
+\noindent\textbf{Definition (Permutation equivariance).} A node-level function \(\Phi\) is permutation equivariant if, for every permutation matrix \(P\),
+\[
+\Phi(PAP^\top,PX)=P\Phi(A,X).
+\]
+Reordering the input nodes therefore reorders their output representations in the same way.
+
+\medskip
+\noindent\textbf{Definition (Permutation invariance).} A graph-level function \(f\) is permutation invariant if, for every permutation matrix \(P\),
+\[
+f(PAP^\top,PX)=f(A,X).
+\]
+Reordering the nodes therefore has no effect on the graph-level output.
+
+A GNN can satisfy these requirements by applying the same local update rule at every node and aggregating neighbouring information without depending on its order. An invariant readout applies the same principle when node representations are combined for graph classification.
+
+\subsection{Message Passing and Graph-Level Representation}
+\label{sec:message-passing}
+
+In each message-passing layer, a node receives information from its neighbours and uses it to update its own representation. Later layers repeat this process using the updated representations, allowing information to pass beyond immediate neighbours. Let \(\mathbf{h}_i^{(\ell)}\) denote the representation of node \(i\) after layer \(\ell\), with \(\mathbf{h}_i^{(0)}=\mathbf{x}_i\). Since neighbours have no meaningful order and different neighbours may have the same representation, their collection can be described as a multiset.
+
+\medskip
+\noindent\textbf{Definition (Multiset).} A multiset is an unordered collection in which an element may occur more than once, with its multiplicity retained.
+
+Gilmer et al.'s~\cite{gilmer2017neural} Message Passing Neural Network (MPNN) framework gives a common description of these local updates and the graph-level readout that follows them. Using layers to index the message-passing steps, the updates can be written as
+\begin{equation}
+\begin{aligned}
+\mathbf{m}_i^{(\ell+1)}
+&=\sum_{j\in\mathcal{N}(i)}
+M_\ell\!\left(
+\mathbf{h}_i^{(\ell)},
+\mathbf{h}_j^{(\ell)},
+\mathbf{e}_{ij}
+\right),\\
+\mathbf{h}_i^{(\ell+1)}
+&=U_\ell\!\left(
+\mathbf{h}_i^{(\ell)},
+\mathbf{m}_i^{(\ell+1)}
+\right).
+\end{aligned}
+\label{eq:mpnn-message}
+\end{equation}
+Here, \(i\) is the receiving node and \(j\) is a neighbouring source node. The message function \(M_\ell\) uses their representations and, where applicable, edge information \(\mathbf{e}_{ij}\) to construct a message. The incoming messages are combined to form \(\mathbf{m}_i^{(\ell+1)}\), which the update function \(U_\ell\) uses together with the node's current representation to produce the next representation.
+
+The aggregation must not depend on the order in which neighbouring messages are presented. Sum, mean and componentwise maximum are common examples. Their shared permutation invariance does not mean that they retain the same information. A sum changes when a non-zero element is repeated, a mean divides by the number of elements, and a maximum retains only the largest value in each component. Different aggregation functions can therefore preserve different distinctions between neighbourhoods.
+
+After \(L\) layers, a node can receive information from nodes up to \(L\) hops away, where a hop corresponds to traversing one edge. This region is its receptive field. Increasing the number of layers allows information to travel from progressively more distant nodes, but does not guarantee that every distinction within that region is preserved by the aggregation process.
+
+For graph classification, the final collection of node representations must be reduced to a graph-level representation or prediction. In the MPNN framework, a graph-level readout can be written as
+\[
+\widehat{y}_G
+=
+R\!\left(
+\{\mathbf{h}_i^{(L)}:i\in V\}
+\right).
+\]
+The readout \(R\) must give the same result when the node states are reordered. The braces represent a multiset, so repeated node representations are retained.
+
+It is useful to separate the construction of the graph representation from the classifier that uses it. Global sum pooling, for example, gives
+\[
+\mathbf{h}_G
+=
+\sum_{i\in V}\mathbf{h}_i^{(L)}.
+\]
+Its dimension is determined by the size of the node representations and does not change with the number of nodes in the graph. The sum is independent of node order, while its value can still reflect graph size and multiplicity. A classifier can then use \(\mathbf{h}_G\) to predict the graph label. Global mean and maximum pooling provide other permutation-invariant alternatives.
+
+Neighbourhood aggregation updates one node using local information, while graph-level readout combines representations across the whole graph. The choice of local aggregation therefore affects which information is available when the graph representation is eventually formed.
+
+\subsection{Neighbourhood Aggregation in Graph Neural Networks}
+\label{sec:aggregation}
+
+Two important choices in neighbourhood aggregation are how neighbouring representations are combined and how the receiving node's own representation enters the update. GCN, GraphSAGE and GIN make these choices in different ways. Bias terms are omitted from the following layer equations for clarity.
+
+\subsubsection{Graph Convolutional Networks}
+\label{sec:gcn}
+
+Kipf and Welling's~\cite{kipf2017gcn} Graph Convolutional Network (GCN) combines a learned feature transformation with weights determined by the degrees of connected nodes. Its layer update is
+\begin{equation}
+H^{(\ell+1)}
+=
+\sigma\!\left(
+\widetilde{D}^{-1/2}
+\widetilde{A}
+\widetilde{D}^{-1/2}
+H^{(\ell)}
+W^{(\ell)}
+\right),
+\label{eq:gcn}
+\end{equation}
+where \(H^{(0)}=X\), \(W^{(\ell)}\) is a learned weight matrix, and \(\sigma\) is an activation applied componentwise. Each row of \(H^{(\ell)}\) contains the representation of one node, so \(W^{(\ell)}\) multiplies on the right. The node-wise equations below use column vectors. The matrix
+\[
+\widetilde{A}=A+I
+\]
+adds a self-connection for each node, with \(I\) denoting the \(n\times n\) identity matrix. Its diagonal degree matrix is defined by
+\[
+\widetilde{D}_{ii}
+=
+\sum_j\widetilde{A}_{ij}.
+\]
+
+The symmetric degree normalisation in Equation~\eqref{eq:gcn} scales the contribution from node \(j\) to node \(i\) by
+\[
+\frac{1}{\sqrt{\widetilde{D}_{ii}\widetilde{D}_{jj}}}.
+\]
+Neighbours therefore need not receive the same scalar weight, since their degrees may differ. These weights are determined by the graph structure, while \(W^{(\ell)}\) learns how the feature channels are transformed. GCN can therefore weight connected nodes differently without computing a learned feature-dependent attention score for each connection.
+
+\subsubsection{GraphSAGE}
+\label{sec:graphsage}
+
+Hamilton et al.~\cite{hamilton2017inductive} introduced GraphSAGE to learn functions that construct node representations from node features and local neighbourhoods. This gives the method an inductive form. The learned functions can be applied to nodes not seen during training rather than requiring a separate learned embedding for each node.
+
+A GraphSAGE layer first aggregates the neighbouring representations and then combines the result with the receiving node's own representation:
+\begin{equation}
+\begin{aligned}
+\mathbf{h}_{\mathcal{N}(i)}^{(\ell+1)}
+&=
+\operatorname{AGGREGATE}_{\ell}
+\!\left(
+\{\mathbf{h}_j^{(\ell)}:j\in\mathcal{N}(i)\}
+\right),\\
+\mathbf{h}_i^{(\ell+1)}
+&=
+\sigma\!\left(
+W^{(\ell)}
+\left[
+\mathbf{h}_i^{(\ell)}
+\Vert
+\mathbf{h}_{\mathcal{N}(i)}^{(\ell+1)}
+\right]
+\right).
+\end{aligned}
+\label{eq:sage-combine}
+\end{equation}
+The aggregation function produces a summary of the neighbouring representations. The symbol \(\Vert\) denotes concatenation, joining this summary with the node's own representation before the learned transformation and activation.
+
+For the mean aggregator, the neighbourhood representation is
+\[
+\mathbf{h}_{\mathcal{N}(i)}^{(\ell+1)}
+=
+\frac{1}{|\mathcal{N}(i)|}
+\sum_{j\in\mathcal{N}(i)}
+\mathbf{h}_j^{(\ell)}
+\]
+for a non-empty neighbourhood. Every neighbour receives the same scalar weight in this average, although the representations being averaged can differ. The receiving node remains a separate input to the update rather than being included in the neighbourhood mean.
+
+\subsubsection{Graph Isomorphism Networks}
+\label{sec:gin}
+
+Xu et al.~\cite{xu2019powerful} examine what GNNs can distinguish by studying how they aggregate multisets of neighbouring representations. If two different multisets produce the same aggregate, the distinction between them is lost at that point in the network. Multiplicity is particularly important. For example, repeating the same non-zero vector twice or four times gives the same mean and componentwise maximum, but different sums.
+
+The Graph Isomorphism Network (GIN) uses a sum of neighbouring representations:
+\begin{equation}
+\mathbf{h}_i^{(\ell+1)}
+=
+\operatorname{MLP}^{(\ell)}
+\!\left(
+(1+\epsilon^{(\ell)})
+\mathbf{h}_i^{(\ell)}
++
+\sum_{j\in\mathcal{N}(i)}
+\mathbf{h}_j^{(\ell)}
+\right),
+\label{eq:gin}
+\end{equation}
+where \(\operatorname{MLP}^{(\ell)}\) is a multilayer perceptron. The neighbouring representations are summed, while the receiving node's own representation is added with weight \(1+\epsilon^{(\ell)}\). The scalar \(\epsilon^{(\ell)}\) controls the receiving node's contribution and may be learned or fixed.
+
+An aggregation function is injective if different inputs always produce different outputs. A raw vector sum is not automatically injective over arbitrary multisets, since different collections of vectors can have the same sum. Xu et al.~\cite{xu2019powerful} show that, under the conditions considered in their analysis, suitable mappings combined with summation and sufficiently expressive transformations can represent injective functions over neighbourhood multisets. This motivates the sum-based aggregation and MLP used by GIN.
+
+The one-dimensional Weisfeiler--Lehman (1-WL) test provides a reference for this ability to distinguish graph structures. At each iteration, it updates a node's label using its current label and the multiset of neighbouring labels. Under the conditions established by Xu et al.~\cite{xu2019powerful}, a GIN with suitable injective aggregation and readout can match the distinguishing power of 1-WL within the class of message-passing GNNs considered. This concerns what the architecture is capable of representing. It does not guarantee that a particular fitted GIN will reach that capacity or achieve higher predictive accuracy on unseen graphs.
+
+GCN, mean-based GraphSAGE and GIN therefore differ in how graph structure, neighbouring representations and the receiving node's own state enter each update. In the forms considered here, none computes learned, feature-dependent scalar attention weights for individual source--receiver connections.
+
+\subsection{Attention in Graph Neural Networks}
+\label{sec:attention}
+
+A further choice is whether the relative weights assigned to neighbours should depend on the representations being processed. Equal weighting gives each neighbour the same scalar coefficient, while degree-based weighting uses properties of the graph structure. Attention instead computes the weights from learned node representations, allowing them to change as those representations change.
+
+The graph still determines which sources are allowed to contribute to a receiving node. Within that neighbourhood, an attention mechanism transforms the node representations, computes a score for each permitted source--receiver pair, and normalises those scores. The resulting coefficients scale the transformed source vectors before they are combined.
+
+The model learns the parameters of the transformation and scoring functions. Scores and attention coefficients are then calculated from the representations being processed. A coefficient is therefore not an independently learned parameter attached permanently to an edge. Equal coefficients also need not produce identical messages, since the transformed source vectors can still differ.
+
+Several attention heads can operate in parallel. Each head has its own parameters, computes its own attention coefficients and produces its own aggregated representation. The head outputs are then combined. GAT provides a particular graph-attention mechanism based on an additive scoring function and a softmax over each receiving node's neighbourhood.
+
+\subsection{Graph Attention Networks}
+\label{sec:gat}
+
+Veli\v{c}kovi\'{c} et al.'s~\cite{velickovic2018gat} Graph Attention Network (GAT) uses the representations of a receiving node and a neighbouring source node to calculate how strongly that source contributes to the update. The same learned scoring function is applied to every permitted source--receiver pair.
+
+For one attention head, let \(\mathbf{h}_i\in\mathbb{R}^{d}\) be the input representation of node \(i\). Layer indices are omitted in the following attention equations, with \(\mathbf{h}'_i\) denoting the output representation of the layer. A shared learned matrix \(W\in\mathbb{R}^{q\times d}\) transforms each representation into \(q\) channels. The unnormalised attention score for source node \(j\) contributing to receiving node \(i\) is
+\begin{equation}
+e_{ij}
+=
+\operatorname{LeakyReLU}
+\!\left(
+\mathbf{a}^{\top}
+[W\mathbf{h}_i\Vert W\mathbf{h}_j]
+\right),
+\label{eq:gat-score}
+\end{equation}
+where \(\mathbf{a}\in\mathbb{R}^{2q}\) contains learned scoring parameters. The score \(e_{ij}\) is a scalar calculated from the two transformed node representations.
+
+A softmax converts the scores into attention coefficients that sum to one within the receiving neighbourhood:
+\begin{equation}
+\alpha_{ij}
+=
+\frac{\exp(e_{ij})}
+{\sum_{r\in\widetilde{\mathcal{N}}(i)}
+\exp(e_{ir})}.
+\label{eq:gat-softmax}
+\end{equation}
+The normalisation is local to the receiving node. Each coefficient therefore expresses the relative weight of one source compared with the other sources available to the same receiver.
+
+The resulting coefficient scales the transformed source representation:
+\begin{equation}
+\mathbf{h}'_i
+=
+\sigma\!\left(
+\sum_{j\in\widetilde{\mathcal{N}}(i)}
+\alpha_{ij}
+W\mathbf{h}_j
+\right).
+\label{eq:gat-update}
+\end{equation}
+The weighted source vectors are summed before the activation \(\sigma\) is applied. The self-inclusive neighbourhood allows the receiving node's own transformed representation to contribute alongside those of its neighbours.
+
+The parameters \(W\) and \(\mathbf{a}\) are shared across nodes and learned during training. By contrast, \(e_{ij}\) and \(\alpha_{ij}\) are calculated when the layer processes particular node representations. They are not separately learned parameters stored for individual graph edges.
+
+GAT uses masked self-attention on a graph. The node representations are used both to compute the scores and to supply the information being aggregated, while the graph structure restricts which source--receiver pairs are considered. Only pairs permitted by the local graph neighbourhood take part in the attention operation.
+
+Multiple attention heads allow several independently parameterised attention mechanisms to operate over the same neighbourhood. For \(K\) heads, an intermediate GAT layer concatenates their outputs:
+\[
+\mathbf{h}'_i
+=
+\mathop{\Vert}_{k=1}^{K}
+\sigma\!\left(
+\sum_{j\in\widetilde{\mathcal{N}}(i)}
+\alpha_{ij}^{(k)}
+W^{(k)}
+\mathbf{h}_j
+\right).
+\]
+If each head produces \(q\) output channels, concatenation gives a total representation width of \(Kq\). Holding this total width fixed while increasing the number of heads therefore leaves fewer channels available to each head. A fixed-width comparison consequently changes both the number of independently parameterised heads and the dimensionality of each head.
+
+In the original GAT node-classification architecture, intermediate heads are concatenated while output heads are averaged~\cite{velickovic2018gat}. Both operations combine head outputs for the same node. Graph classification still requires a separate graph-level readout to combine information across different nodes.
+
+The attention coefficients express relative weights within individual receiving neighbourhoods rather than a global measure of importance. The particular scoring function used by standard GAT also places a restriction on how the ranking of candidate sources can depend on the receiving node.
+
+\subsection{GATv2 and Query-Dependent Attention}
+\label{sec:gatv2}
+
+Brody et al.~\cite{brody2022attentive} show that the standard GAT scorer restricts how the ranking of neighbouring sources can depend on the receiving node. They describe this as static attention. Here, the receiving node acts as the query. The restriction concerns the ordering of candidate sources within an attention head; the numerical coefficient values themselves can still differ between receivers.
+
+Writing the GAT scoring vector as
+\[
+\mathbf{a}
+=
+[\mathbf{a}_{\mathrm{rec}}\Vert\mathbf{a}_{\mathrm{send}}]
+\]
+separates the receiver and source terms in Equation~\eqref{eq:gat-score}:
+\[
+e_{ij}
+=
+\operatorname{LeakyReLU}
+\!\left(
+\mathbf{a}_{\mathrm{rec}}^\top W\mathbf{h}_i
++
+\mathbf{a}_{\mathrm{send}}^\top W\mathbf{h}_j
+\right).
+\]
+For a fixed receiving node \(i\), the receiver-dependent term is shared by every candidate source. Since LeakyReLU is monotonic and softmax preserves the ordering of the scores, the relative ranking of those candidates is determined by their source-dependent terms. Different receivers may still have different neighbourhoods, coefficient values and softmax denominators, but the receiving representation cannot freely reverse the ranking of the same candidate sources within one head.
+
+The representations entering the scorer may already contain information gathered in earlier layers. The restriction therefore concerns how the current receiver ranks the representations it is given, rather than saying that the source score depends only on the original node features. Using several heads provides several separately learned rankings, but the restriction remains within each individual head.
+
+GATv2 changes the scoring operation by applying the nonlinearity before the final scalar projection:
+\begin{equation}
+e_{ij}^{\mathrm{v2}}
+=
+\mathbf{a}_{\mathrm{v2}}^{\top}
+\operatorname{LeakyReLU}
+\!\left(
+W_{\mathrm{v2}}
+[\mathbf{h}_i\Vert\mathbf{h}_j]
+\right).
+\label{eq:gatv2-score}
+\end{equation}
+Here, \(W_{\mathrm{v2}}\in\mathbb{R}^{q\times 2d}\) and \(\mathbf{a}_{\mathrm{v2}}\in\mathbb{R}^{q}\). The transformation can equivalently be viewed as containing separate receiver and source components before the nonlinearity, with \(W_{\mathrm{v2}}=[W_{\mathrm{rec}}\;W_{\mathrm{send}}]\) and \(W_{\mathrm{rec}},W_{\mathrm{send}}\in\mathbb{R}^{q\times d}\). Unlike standard GAT, the receiver and source therefore interact within a vector before the final projection by \(\mathbf{a}_{\mathrm{v2}}^{\top}\).
+
+The scores are normalised using the same local softmax as in Equation~\eqref{eq:gat-softmax}, and the resulting coefficients weight the transformed source vectors \(W_{\mathrm{send}}\mathbf{h}_j\) in the update.
+
+This change allows the receiving representation to affect the relative ordering of candidate sources more flexibly. Brody et al.~\cite{brody2022attentive} show that, with sufficient capacity, GATv2 can express dynamic, query-dependent attention patterns that standard GAT cannot represent.
+
+Greater scorer expressivity does not guarantee greater predictive performance. Whether the additional flexibility is useful depends on the task, the representations learned during training and the surrounding graph-classification architecture. GATv2 can also use shared or separate receiver and source transformations, which affects its parameterisation.
+
+\subsection{Attention Coefficients and Uniform Weighting}
+\label{sec:uniform-background}
+
+Attention coefficients are normalised separately for every receiving node and attention head. For receiver \(i\) and head \(k\),
+\[
+\alpha_{ij}^{(k)}\geq 0,
+\qquad
+\sum_{j\in\widetilde{\mathcal{N}}(i)}
+\alpha_{ij}^{(k)}
+=
+1.
+\]
+The coefficients therefore form a local distribution over the incoming entries available to that receiver. If more sources participate in the softmax, the same total weight is divided among more alternatives. A coefficient must therefore be interpreted relative to the neighbourhood over which it was normalised.
+
+\Needspace{6\baselineskip}
+If receiver \(i\) has \(m_i\) effective incoming entries, including its self-connection, uniform attention assigns
+\[
+\alpha_{ij}^{(k)}
+=
+\frac{1}{m_i}
+\]
+to every source in the head. Each source then receives the same scalar weight, but its transformed representation can still differ from those of the other sources. Uniform attention therefore does not remove message passing or make all incoming messages identical. It removes learned differences in the scalar attention weights assigned within the neighbourhood.
+
+Learned attention may remain close to this uniform distribution or place more weight on a smaller number of sources. This describes the concentration of the scalar coefficients, but not necessarily the effect of those sources on the final prediction. A large coefficient can multiply a small transformed vector, and later layers, nonlinearities, graph-level pooling and the classifier can further change its effect. Coefficient concentration alone therefore does not establish predictive, causal or semantic importance.
+
+Uniform attention can be imposed throughout training or introduced only after a learned-attention model has already been fitted. When uniform weighting is used from the beginning, the feature transformations and classifier can adapt to that constraint during optimisation. Comparing separately trained learned and uniform models therefore tests whether allowing non-uniform weighting improves predictive performance under the chosen training procedure.
+
+Replacing learned scoring only after fitting asks a different question. The remaining fitted parameters are kept fixed, so the model cannot adapt its feature transformations or classifier to the new weighting. Changes in its outputs then measure how strongly that particular fitted solution depends on the scoring mechanism around which it was trained.
+
+Coefficient non-uniformity, the predictive benefit of learning unequal weights during training, and the dependence of an already fitted model on learned scoring are therefore related but distinct properties of graph attention.
+
+
+
+
+
+\clearpage
+\section{Literature Review}
+\label{sec:literature}
+
+\subsection{Development of Neighbourhood Aggregation and Graph Attention}
+\label{sec:literature-aggregation}
+
+The relevant literature considers both the design of neighbourhood aggregation rules and what those rules can represent. The MPNN framework provides a common language for these developments. GCN, GraphSAGE and GIN illustrate different aggregation choices, while GAT and GATv2 focus on learned weighting and the expressivity of the attention scorer.
+
+Gilmer et al.~\cite{gilmer2017neural} bring several existing graph neural architectures into the MPNN framework, separating local message passing from graph-level readout. Their molecular quantum-chemistry experiments demonstrate how variants within this framework can predict properties of entire molecules. The contribution is both practical and conceptual. A shared description makes it possible to compare models through their message, update and readout functions without treating each architecture as an unrelated construction.
+
+Kipf and Welling~\cite{kipf2017gcn} develop a computationally efficient graph convolution through a local approximation motivated by spectral filtering. Their semi-supervised node-classification experiments establish a simple degree-normalised propagation rule as a useful reference architecture. This rule also provides a baseline for assessing whether more flexible aggregation improves prediction.
+
+Hamilton et al.~\cite{hamilton2017inductive} introduce GraphSAGE as an inductive representation-learning framework. It learns functions that generate node representations from features and neighbourhoods, allowing application beyond the nodes observed during training. By considering mean, pooling and recurrent aggregators, the paper treats neighbourhood aggregation as a design space rather than a single fixed operation. Its original evaluation concerns node representations, while its operators can also form part of a graph-classification network.
+
+Xu et al.~\cite{xu2019powerful} examine the distinctions that aggregation-based models can express. Their multiset analysis explains why familiar aggregation choices can map different neighbourhoods to the same representation and uses 1-WL as a reference for discriminative power. GIN follows from this analysis through a sum-based construction intended to preserve neighbourhood distinctions. The analysis shows why representational capacity matters, while leaving generalisation as a separate question.
+
+Wu et al.~\cite{wu2019simplifying} consider a simpler approach with Simple Graph Convolution (SGC). Removing intermediate nonlinearities and collapsing consecutive weight matrices produces a fixed graph propagation step followed by a linear classifier. Its competitive performance in several evaluated settings shows that added architectural complexity is not always necessary for good predictions. This cautions against assuming that a more flexible model will always predict better.
+
+Veli\v{c}kovi\'{c} et al.~\cite{velickovic2018gat} introduce GAT's masked self-attention and multiple-head construction, evaluating the architecture on transductive citation-network tasks and inductive protein--protein interaction (PPI) graphs. These experiments establish feature-dependent neighbourhood weighting as a practical alternative to aggregation determined solely by graph structure or a fixed reduction rule. The authors also motivate multiple attention heads partly as a way of stabilising learning, with head outputs concatenated or averaged depending on their position in the network. This makes head organisation part of the GAT design, although it does not imply that increasing head count should improve performance when total representation width is fixed.
+
+The GAT paper also includes a control, Const-GAT, which retains the architecture while assigning equal attention to neighbours. On the inductive PPI task, the reported micro-averaged F1 is \(0.934\pm0.006\) for Const-GAT and \(0.973\pm0.002\) for learned-attention GAT. These are node-level multilabel predictions on multiple graphs, rather than graph-classification results. The comparison supports the usefulness of learned unequal weighting in that setting, but does not establish that it will help on every task. It motivates testing the same broad question directly within a controlled graph-classification pipeline.
+
+The authors visualise learned normalised attention coefficients, averaged across heads, on the Cora citation network. They note that properly interpreting these coefficients would require further domain knowledge. The coefficients can therefore be examined as part of the model's aggregation behaviour, but should not be treated on their own as semantic or causal explanations of a prediction. This distinction is relevant when analysing learned attention distributions and the effects of changing attention after fitting.
+
+Brody et al.~\cite{brody2022attentive} revisit the scorer itself, showing that the standard GAT formulation can only produce static attention rankings. GATv2 changes the operation order to permit dynamic attention, as described in Section~\ref{sec:gatv2}. Their synthetic dictionary-lookup experiment makes this distinction concrete. The desired source depends on the query, exposing a limitation of standard GAT that GATv2 can overcome. The paper also reports broader comparisons across node, link and graph prediction, connecting the theoretical analysis to empirical behaviour.
+
+The empirical comparisons report improvements for GATv2 over GAT in several of the settings tested. However, the theoretical ability to represent more flexible attention patterns does not guarantee higher predictive accuracy on every task. The expressivity result establishes a difference in what the scoring functions can represent, while the experiments provide separate evidence of whether that difference is useful for prediction.
+
+In the main experiments, the authors use shared source and receiver transformations in GATv2 to control the additional parameter cost of its general form. The present project instead retains separate transformations in its implemented GATv2. Its comparison therefore addresses those two specified model forms under a common pipeline, with their parameter difference made explicit, rather than reproducing the paper's parameter-control choice.
+
+Together, these works distinguish the design of neighbourhood aggregation from what its rules can represent. They also separate the use of learned weighting from its predictive benefit and the restrictions of the attention scorer. This provides a basis for examining head organisation, GAT versus GATv2, uniform-attention retraining and fitted-attention behaviour as related but separate aspects of graph attention.
+
+\subsection{Graph Classification and Graph-Level Representation}
+\label{sec:literature-readout}
+
+Local propagation does not by itself resolve the graph-classification task. A model must also turn a variable number of node representations into a whole-graph representation suitable for prediction. As established in Section~\ref{sec:message-passing}, this readout problem is distinct from deciding how neighbours contribute to a local update.
+
+Zhang et al.~\cite{zhang2018endtoend} introduce an end-to-end Deep Graph Convolutional Neural Network (DGCNN) for graph classification, with SortPooling as a central component. SortPooling orders learned node representations consistently and truncates or pads the ordered collection to a fixed size before downstream convolution and classification. The architecture demonstrates that constructing the graph-level representation can involve substantial learned processing, rather than a single global sum or mean.
+
+Lee et al.~\cite{lee2019selfattention} introduce Self-Attention Graph Pooling (SAGPool), using a GNN to compute node scores from both node features and graph topology. A selected proportion of the highest-scoring nodes is retained, their representations are weighted, and the corresponding connectivity defines a smaller graph. This supports hierarchical graph representation. The role of attention differs from GAT. SAGPool uses scores to select and weight nodes during pooling, whereas GAT normalises weights over incoming neighbours to update each receiving node.
+
+These methods show that pooling is an important independent source of architectural variation. The present project therefore uses the same global sum pooling and final classifier across its models. This keeps the investigation centred on neighbourhood attention while avoiding a simultaneous comparison of different graph-level pooling mechanisms. DGCNN and SAGPool provide context for that choice and are not additional experimental models.
+
+\subsection{Controlled Comparison and GNN Evaluation}
+\label{sec:literature-evaluation}
+
+Differences between architectures are difficult to interpret when data splits, input features, training procedures and model-selection rules also change. Models with the same hidden width can still have different parameter counts. Evaluation methodology is therefore also important for understanding what an empirical comparison actually supports.
+
+Errica et al.~\cite{errica2020fair} re-evaluate graph-classification models within a common experimental framework. Their study emphasises shared data partitions and feature policies, explicit separation of model selection from assessment, and reporting variability across repeated evaluations. It also includes structure-agnostic baselines to test whether apparent benchmark success necessarily reflects effective use of graph connectivity. Their competitive performance on some datasets shows that high accuracy does not necessarily mean a model has made effective use of graph structure.
+
+Their evaluation uses a more extensive model-selection and assessment procedure than the present fixed-configuration study. This provides an important distinction between choices selected using validation data and final assessment on held-out data. In particular, choosing an epoch on a validation set addresses a narrower question than independently tuning architecture and training hyperparameters within every outer assessment fold.
+
+Dwivedi et al.~\cite{dwivedi2023benchmarking} develop a standardised benchmarking framework spanning multiple graph tasks, with common infrastructure, reproducible configurations and explicit parameter budgets. Their work makes model size a visible part of architectural comparison. This is directly relevant to distinguishing a fixed-width head experiment from a model-size sweep, and to recognising that matching GAT and GATv2 in width does not necessarily match their number of learned parameters.
+
+The present study adopts the common-comparison principle within a bounded experimental scope. Dataset representation, graph-level architecture, optimisation and assessment are held fixed wherever possible, and remaining differences are stated alongside the relevant experiment. The results therefore apply to the specified configurations rather than to separately optimised versions of every model family.
+
+The three strands of literature provide complementary foundations for the investigation. Neighbourhood aggregation and attention research establishes the mechanisms being compared, while graph-classification work shows why readout must be considered separately from local aggregation. Benchmarking research further demonstrates the importance of common experimental conditions and clearly stated architectural differences. Together, these findings support a controlled investigation of attention mechanisms without assuming that greater flexibility or model complexity must produce better predictive performance.
+
+\clearpage
 \section{Methodology}
+\label{sec:methodology}
 
+The experiments used a common graph-classification pipeline across the four research questions, with input representation, graph-level architecture, training and evaluation held fixed wherever each comparison permitted. Each research question changed a specified aspect of attention or examined the behaviour of an already fitted model, with remaining differences stated in the relevant subsection. Implementation, experiment configurations, result records and reproduction instructions are available in the accompanying project repository~\cite{infinityrepo}.
+
+\subsection{Datasets and Input Representation}
+\label{sec:datasets}
+
+MUTAG, PROTEINS and NCI1 were taken from the TU benchmark collection~\cite{morris2020tudataset} and loaded using PyTorch Geometric~\cite{fey2019pyg} through its \texttt{TUDataset} interface. The original, non-cleaned versions were used, with optional continuous node and edge attributes disabled. No additional transform or graph filter was applied. Table~\ref{tab:datasets} summarises the resulting datasets.
+
+\begin{table}[!ht]
+\centering
+\caption{Dataset characteristics. Class counts give the numbers of graphs in the two classes, in the order class 0 / class 1. Node channels give the categorical input dimension used by the models.}
+\label{tab:datasets}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Dataset & Graphs & \shortstack{Class\\counts} & \shortstack{Node\\channels} & \shortstack{Nodes per graph\\min. / mean / max.}\\
+\midrule
+MUTAG & 188 & 63 / 125 & 7 & 10 / 17.93 / 28\\
+PROTEINS & 1,113 & 663 / 450 & 3 & 4 / 39.06 / 620\\
+NCI1 & 4,110 & 2,053 / 2,057 & 37 & 3 / 29.87 / 111\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+MUTAG~\cite{debnath1991structure} contains 188 molecular graphs labelled as mutagenic or non-mutagenic, derived from work on aromatic and heteroaromatic nitro compounds. Nodes represent atoms and edges represent chemical bonds. The project used seven-dimensional one-hot node features for the categories C, N, O, F, I, Cl and Br. Categorical bond labels were available in the loaded data but were excluded from model input; bond connectivity was retained.
+
+PROTEINS~\cite{borgwardt2005protein} contains 1,113 protein graphs for enzyme/non-enzyme classification. Nodes represent secondary-structure elements, and edges connect elements that are neighbours along the amino acid sequence or in the protein's spatial structure. Three-dimensional one-hot node features encoded categorical secondary-structure types. An available continuous node attribute was excluded, and no edge features were supplied.
+
+NCI1~\cite{wale2008comparison} contains 4,110 molecular graphs for binary anticancer-activity classification. Nodes represent atoms and edges represent chemical bonds. The project used 37-dimensional one-hot categorical node features. No continuous node attributes or edge features were supplied under the chosen representation.
+
+All compared models therefore received only categorical node information and graph connectivity. No engineered graph-level features were added. This kept the inputs consistent across models, while limiting the conclusions to the chosen representation, which excluded MUTAG bond labels and the PROTEINS continuous attribute. The datasets differed substantially in graph count, graph size and input dimensionality, but shared the same experimental framework.
+
+Minibatches contained whole graphs, with full neighbourhoods available and no neighbourhood sampling. No self-loops were inserted globally into the stored graphs. GCN, GAT and GATv2 handled self-connections internally, GraphSAGE retained a separate root contribution, and GIN included the central node through its self term.
+
+\subsection{Common Graph-Classification Architecture}
+\label{sec:common-architecture}
+
+Every model used two message-passing layers, each followed by ReLU, producing final node representations with 64 channels. Global sum pooling formed a graph representation, followed by a single linear classifier:
+\begin{equation}
+\mathbf{h}_G=\sum_{i\in V}\mathbf{h}_i^{(2)},
+\qquad
+\mathbf{z}_G=W_{\mathrm{cls}}\mathbf{h}_G+\mathbf{b}_{\mathrm{cls}}.
+\label{eq:project-classifier}
+\end{equation}
+Here, \(\mathbf{h}_G\in\mathbb{R}^{64}\), \(W_{\mathrm{cls}}\in\mathbb{R}^{2\times64}\), and \(\mathbf{z}_G\in\mathbb{R}^{2}\) contains the two class logits. The predicted class is the index of the larger logit.
+
+Fixing the pooling and classifier in Equation~\eqref{eq:project-classifier} kept the main architectural variation within local message passing. The two-layer depth and 64-channel width were controlled project choices, rather than independently optimised settings for each family. Common representation width controlled one aspect of model size, but did not imply equal parameter counts across operators.
+
+\subsection{Model Configurations}
+\label{sec:model-configurations}
+
+The implemented models were GCN, GraphSAGE, GIN, GAT and GATv2. Table~\ref{tab:architectures} summarises their layers, using \(F\) for the node-feature dimension and \(K\) for the first-layer attention-head count.
+
+\begin{table}[!ht]
+\centering
+\caption{Implemented layers. Each message-passing layer is followed by the common ReLU. All models use global sum pooling and a \(64\)-to-\(2\) linear classifier. The main GAT and GATv2 configurations use \(K=8\).}
+\label{tab:architectures}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Model & First layer & Second layer\\
+\midrule
+GCN & \texttt{GCNConv}\((F,64)\) & \texttt{GCNConv}\((64,64)\)\\
+GraphSAGE & Mean \texttt{SAGEConv}\((F,64)\) & Mean \texttt{SAGEConv}\((64,64)\)\\
+GIN & \texttt{GINConv}: MLP \(F\to64\to64\) & \texttt{GINConv}: MLP \(64\to64\to64\)\\
+GAT & \(K\) heads \(\times\) \(64/K\) channels & 1 head \(\times\) 64 channels\\
+GATv2 & \(K\) heads \(\times\) \(64/K\) channels & 1 head \(\times\) 64 channels\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The GCN configuration used \texttt{GCNConv} layers with symmetric degree normalisation, internal self-loops and learned biases. Both layers produced 64 channels and used the standard self-loop weighting described in Section~\ref{sec:gcn}. The normalised graph structure was recomputed for each minibatch rather than cached across batches.
+
+The GraphSAGE configuration used \texttt{SAGEConv} with mean aggregation, a separate trainable root transformation and a learned bias. Both layers produced 64 channels. No pre-aggregation projection or output feature normalisation was used. The model therefore retained the separate root-and-neighbourhood structure described in Section~\ref{sec:graphsage} without reproducing the original algorithm's final unit-normalisation step.
+
+The GIN configuration used GIN-0 with \(\epsilon=0\) fixed in both layers. Each \texttt{GINConv} contained its own two-linear-layer MLP with hidden and output width 64 and an internal ReLU, followed by the common ReLU applied after the full message-passing layer. No batch normalisation or concatenation of representations across depths was used. This was a two-layer adaptation of the GIN aggregation mechanism described by Xu et al.~\cite{xu2019powerful}, rather than a reproduction of their full graph-classification architecture.
+
+The reference GAT configuration used eight first-layer heads with eight channels each, concatenated to give width 64. The second layer used one 64-channel head without head concatenation. Both layers used attention-scorer LeakyReLU with negative slope 0.2, zero attention dropout, internal self-loops and learned biases. Edge features and residual connections were disabled. The scorer's LeakyReLU was distinct from the ReLU applied after each attention layer as part of the common architecture. The eight-head configuration served as the reference GAT reused across RQ1--RQ4, while RQ1 separately varied the first-layer head count at fixed total width.
+
+GATv2 used the same head organisation, channel widths and surrounding architecture as the reference GAT. Attention dropout, scoring slope, self-loop handling and activation placement also matched. Its general-form implementation retained separate source and receiver transformations in both layers, increasing the parameter count relative to GAT.
+
+\begin{table}[!ht]
+\centering
+\caption{Trainable parameter counts for the five main configurations. Differences between datasets arise from their input feature dimensions.}
+\label{tab:parameters}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Model & MUTAG & PROTEINS & NCI1\\
+\midrule
+GCN & 4,802 & 4,546 & 6,722\\
+GraphSAGE & 9,346 & 8,834 & 13,186\\
+GIN & 13,122 & 12,866 & 15,042\\
+GAT & 5,058 & 4,802 & 6,978\\
+GATv2 & 9,730 & 9,218 & 13,570\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:parameters} shows that the models shared a representation width but did not have matching parameter counts. In particular, the separate GATv2 transformations increased its parameter budget despite matching GAT in depth and head organisation.
+
+\subsection{Training and Model-State Selection}
+\label{sec:training}
+
+All final models were trained in PyTorch~\cite{paszke2019pytorch} for 500 epochs using Adam~\cite{kingma2015adam}, with a learning rate of \(0.01\), weight decay of \(5\times10^{-4}\), and minibatches of 32 graphs. The objective was graph-level cross-entropy. For a minibatch \(\mathcal{B}\),
+\[
+\mathcal{L}_{\mathcal{B}}
+=-\frac{1}{|\mathcal{B}|}
+\sum_{G\in\mathcal{B}}\log p_\theta(y_G\mid G),
+\]
+where \(\theta\) denotes the model parameters and \(p_\theta(y_G\mid G)\) is the softmax probability assigned to the observed class. Validation and test cross-entropies were also averaged over graphs.
+
+Validation cross-entropy was evaluated after every epoch, and the model state with the lowest validation cross-entropy was retained. The earliest epoch was retained on an exact tie. Every fit nevertheless completed all 500 epochs before the selected state was restored for outer-test assessment. Validation therefore selected the fitted model state but did not terminate training early; no early stopping was used.
+
+The 500-epoch allowance was fixed before the final cross-validation results were obtained. It was informed by an earlier analysis of validation behaviour across 27 complete 1,000-epoch training runs on the three benchmark datasets. It examined whether a shorter common training budget captured the useful validation behaviour seen over the full runs. Development-test scores were not used to choose the budget. The 500-epoch limit was therefore a common practical choice, not a guarantee that every run reached its lowest validation loss within 500 epochs.
+
+Because this earlier analysis used the same datasets as the final cross-validation, the final assessment was not fully independent of the information gathered during development. The remaining architecture and training settings were fixed for the final experiment matrix rather than reselected through a new hyperparameter grid within each outer fold.
+
+The experiments were run on Windows 11 using Python 3.14.7, PyTorch 2.13.0+cu130 and PyTorch Geometric 2.8.0.post1, with the CUDA 13.0 build of PyTorch on an NVIDIA GeForce RTX 4070 Laptop GPU.
+
+\subsection{Cross-Validation and Evaluation}
+\label{sec:evaluation}
+
+Each dataset was assessed separately using stratified five-fold outer cross-validation. One fold supplied the outer-test graphs. Within the remaining four-fold portion, approximately one eighth of each class was assigned to validation, with the rest used for fitting. This gave proportions close to \(70\%\) fitting, \(10\%\) validation and \(20\%\) outer test. Table~\ref{tab:partitions} gives the realised sizes.
+
+\begin{table}[!ht]
+\centering
+\caption{Realised partition sizes per outer fold. One-graph ranges arise from integer allocation and stratification.}
+\label{tab:partitions}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Dataset & Fitting & Validation & Outer test\\
+\midrule
+MUTAG & 131--132 & 19 & 37--38\\
+PROTEINS & 779--780 & 111 & 222--223\\
+NCI1 & 2,877 & 411 & 822\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The fitting subset supplied gradient-based parameter updates, validation selected the retained model state, and the restored state was assessed on the outer-test graphs. Outer-test graphs were excluded from optimisation and state selection within their fold, and there was no subsequent refitting on the combined fitting and validation subsets. Every graph appeared exactly once in the outer-test role across the five folds.
+
+Corresponding conditions used identical partitions and a common prescribed seed schedule. The outer split used seed 0, while outer fold \(f\in\{0,1,2,3,4\}\) used validation seed \(1000+f\) and training seed \(2000+f\). Each condition and fold started from a fresh model and optimiser, with no warm start. Using the same prescribed seeds allowed fold-aligned comparisons, but did not make different architectures draw identical random tensors or follow identical optimisation trajectories. There was one training realisation per condition and fold.
+
+Accuracy was the primary predictive metric. For outer-test partition \(\mathcal{T}_f\), fold accuracy was
+\[
+a_f=\frac{1}{|\mathcal{T}_f|}
+\sum_{G\in\mathcal{T}_f}\mathbf{1}[\widehat{y}_G=y_G],
+\]
+where \(\mathbf{1}[\cdot]\) is an indicator. The five fold accuracies were summarised by their unweighted mean and sample standard deviation:
+\[
+\bar{a}=\frac{1}{5}\sum_{f=0}^{4}a_f,
+\qquad
+s_a=\sqrt{\frac{1}{4}\sum_{f=0}^{4}(a_f-\bar{a})^2}.
+\]
+Accuracies were displayed as percentages. This summary weights each fold equally rather than pooling all predictions into a size-weighted accuracy. For matched conditions \(A\) and \(B\), paired differences were calculated within folds as
+\[
+\Delta_f=a_f^{(A)}-a_f^{(B)}.
+\]
+Their mean and sample standard deviation followed the same convention. Accuracy differences were expressed in percentage points, with the subtraction order specified for each research question.
+
+The sample standard deviation describes variation among the five outer folds. It is neither a confidence interval nor a standard error. The fitting sets overlap, and the five folds are not independent datasets. No formal significance or equivalence tests were performed; means, standard deviations and paired differences were treated as descriptive evidence.
+
+The procedure was not fully nested hyperparameter-selection cross-validation. Validation within each outer remainder selected the state or epoch, while the main hyperparameters remained fixed project choices. The results therefore assess the final configurations under the declared protocol, rather than estimating uncertainty from independently repeating the complete model-development process.
+
+\subsection{Research-Question Experiments}
+\label{sec:experiments}
+
+Each research question targeted one aspect of attention design or fitted behaviour while retaining the common pipeline. Existing reference conditions were reused wherever the same configuration appeared in more than one comparison.
+
+The final cross-validation experiment matrix involved 135 training runs, comprising 75 reference-model runs, 45 additional attention-head runs and 15 uniform-attention runs. RQ2 reused the reference results, while RQ4 analysed the fitted reference GAT models without additional training.
+
+\subsubsection{RQ1: Attention-Head Organisation}
+\label{sec:rq1}
+
+RQ1 varied the first-layer head count over \(K\in\{1,2,4,8\}\), keeping concatenated width fixed at 64 and setting the per-head width to \(q=64/K\). The second layer remained one 64-channel head. Table~\ref{tab:heads} gives the construction.
+
+\begin{table}[!ht]
+\centering
+\caption{First-layer head organisations in RQ1. The second attention layer remained one 64-channel head.}
+\label{tab:heads}
+\begin{tabular}{@{}rrr@{}}
+\toprule
+Heads \(K\) & Channels per head & Total first-layer width\\
+\midrule
+1 & 64 & 64\\
+2 & 32 & 64\\
+4 & 16 & 64\\
+8 & 8 & 64\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The eight-head condition reused the reference GAT results. All input, training and assessment settings were unchanged, and the total GAT parameter count remained fixed within each dataset. Performance was compared through fold accuracies and their mean and sample standard deviation.
+
+Increasing \(K\) simultaneously increased the number of independently parameterised heads and reduced the channels available to each head. RQ1 therefore examined attention-head organisation at fixed total width, rather than isolating head count independently of per-head dimensionality.
+
+\subsubsection{RQ2: GAT and GATv2}
+\label{sec:rq2}
+
+RQ2 compared reference GAT with the general-form GATv2 configuration. Both used eight first-layer heads of eight channels and one second-layer head of 64 channels. Inputs, depth, activation placement, readout, classifier, training procedure, partitions and seed schedule were matched. The comparison reused the existing GAT and GATv2 results. Paired accuracy differences were defined as GATv2 minus GAT.
+
+GATv2 retained separate source and receiver transformations. Consequently, the comparison was matched in width and head organisation but not parameter count, as shown in Table~\ref{tab:parameters}. RQ2 assessed the two implemented model forms under a common pipeline; differences could not be attributed exclusively to static versus dynamic attention because the scoring family and parameter budget changed together.
+
+\subsubsection{RQ3: Learned and Uniform Attention During Training}
+\label{sec:rq3}
+
+RQ3 compared the learned-attention reference GAT with a separately initialised GAT trained from the start under uniform attention. In both layers of the uniform model, the source-side and receiver-side scoring parameters were set to zero and frozen. All permitted pre-softmax scores were therefore equal, giving
+\[
+\alpha_{ij}^{(k)}=\frac{1}{m_i},
+\]
+where \(m_i\) counts the effective incoming entries, including the layer's self-loop. Attention dropout was zero in both conditions.
+
+Feature transformations, biases and the graph classifier remained trainable. The uniform-attention GAT could therefore adapt its representations throughout optimisation, while being unable to learn unequal scalar weights among permitted sources. The scoring parameters remained present but fixed. Freezing these parameters reduced the trainable count by 256, giving 4,802 on MUTAG, 4,546 on PROTEINS and 6,722 on NCI1, while leaving the total parameter count unchanged.
+
+Both conditions used the same folds, prescribed seeds, training budget and validation-state-selection rule. The paired difference was learned GAT minus separately trained uniform-attention GAT. This experiment measured whether allowing non-uniform weighting during training improved predictive performance. It did not measure the effect of changing attention in an already fitted learned model, which was the purpose of RQ4.
+
+\subsubsection{RQ4: Fitted-Attention Characterisation and Intervention}
+\label{sec:rq4}
+
+RQ4 used the same validation-selected reference GAT states to examine their coefficient distributions and the effect of replacing learned scoring with uniform scoring without retraining. Each state was examined on its corresponding outer-test graphs, with no new optimisation fits.
+
+Attention coefficients were collected separately from the first and second layers in evaluation mode. The analysis used the effective incoming neighbourhoods processed by each layer, including its internal self-loops, and grouped coefficients by receiving node and head. Let \(\alpha_{ir}^{(\ell,k)}\) denote the coefficient for incoming entry \(r\) at receiver \(i\), layer \(\ell\) and head \(k\). For \(m_i>1\) effective entries, normalised entropy and departure from uniformity were defined as
+\begin{equation}
+\begin{aligned}
+\mathcal{H}_i^{(\ell,k)}
+&=-\frac{1}{\log m_i}
+\sum_{r=1}^{m_i}
+\alpha_{ir}^{(\ell,k)}\log\alpha_{ir}^{(\ell,k)},\\
+D_i^{(\ell,k)}
+&=1-\mathcal{H}_i^{(\ell,k)}.
+\end{aligned}
+\label{eq:attention-departure}
+\end{equation}
+The convention \(0\log0=0\) was used. Uniform coefficients give \(\mathcal{H}=1\) and \(D=0\); larger values of \(D\) indicate greater concentration, approaching 1 when the mass concentrates on one entry. Receivers with \(m_i=1\) were excluded because there is no alternative weighting choice and \(\log 1=0\). The statistic describes a coefficient distribution, rather than predictive importance.
+
+Departures were first averaged across heads for each eligible receiver, then across eligible receivers within each graph. Graph values were averaged within each outer-test fold, and the five fold values were summarised using their mean and sample standard deviation. Layers were kept separate. This averaging procedure gave equal weight to graphs within a fold and to eligible receivers within a graph. It also prevented large graphs, high-degree receivers or additional heads from dominating simply because they supplied more coefficient entries. Averaging across heads, receivers and graphs can conceal a minority of more concentrated neighbourhoods.
+
+The intervention began with a copy of the same selected learned state. Source-side and receiver-side scoring parameters in both GAT layers were replaced by zeros, producing uniform coefficients. No retraining, fine-tuning or optimiser step followed. Feature transformations, biases, the classifier and all other fitted parameters remained fixed. Graph connectivity, self-loop handling and head organisation were unchanged. The original and intervened states were evaluated on the same outer-test graphs.
+
+For fold \(f\), intervention effects were defined as
+\[
+\begin{aligned}
+\Delta\mathcal{L}_f
+&=\mathcal{L}_{f,\mathrm{intervention}}-\mathcal{L}_{f,\mathrm{learned}},\\
+\Delta a_f
+&=a_{f,\mathrm{intervention}}-a_{f,\mathrm{learned}}.
+\end{aligned}
+\]
+Positive \(\Delta\mathcal{L}_f\) means higher cross-entropy, while negative \(\Delta a_f\) means reduced accuracy. Prediction changes were also measured through
+\[
+\operatorname{FlipRate}_f
+=\frac{100}{|\mathcal{T}_f|}
+\sum_{G\in\mathcal{T}_f}
+\mathbf{1}\!\left[
+\widehat{y}_{G,\mathrm{intervention}}
+\neq\widehat{y}_{G,\mathrm{learned}}
+\right],
+\]
+where \(\mathcal{T}_f\) is the outer-test partition. All three metrics were summarised across folds. Accuracy changes were displayed in percentage points and prediction-flip rates as percentages. Cross-entropy can change without changing the predicted class, while prediction changes that improve or reduce correctness can partly cancel in the accuracy total.
+
+Both layers were changed simultaneously, so altered first-layer outputs also changed second-layer inputs. The intervention measured how sensitive the fitted model was to replacing its learned attention scoring in both layers. RQ3 allowed the uniform model to adapt throughout training; RQ4 held the remaining fitted parameters fixed. Similar separately trained accuracies could therefore coexist with strong fitted-state sensitivity. Neither coefficient concentration nor this intervention established that individual coefficients were faithful semantic or causal explanations.
+
+
+
+
+
+
+\clearpage
 \section{Results}
+\label{sec:results}
 
+Results are outer-test summaries across the five folds. Values are means \(\pm\) sample standard deviations unless stated otherwise; paired differences follow the subtraction order specified for each comparison. The five reference models are presented first, followed by the results for RQ1--RQ4.
+
+\subsection{Model Performance}
+\label{sec:results-models}
+
+Table~\ref{tab:model-performance} reports graph-classification accuracy under the common pipeline. The ordering changes across datasets, and no architecture has the highest observed mean on all three. MUTAG shows substantially greater fold-to-fold variation than NCI1 across all five configurations.
+
+\begin{table}[!ht]
+\centering
+\caption{Outer-test accuracy (\%) for the five model configurations, reported as mean \(\pm\) sample SD across five folds.}
+\label{tab:model-performance}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Model & MUTAG & PROTEINS & NCI1\\
+\midrule
+GCN & \(77.6\pm8.2\) & \(74.6\pm2.7\) & \(71.4\pm0.7\)\\
+GraphSAGE & \(79.7\pm6.1\) & \(73.7\pm3.2\) & \(73.4\pm1.3\)\\
+GIN & \(81.4\pm7.4\) & \(72.6\pm3.3\) & \(73.4\pm1.8\)\\
+GAT & \(79.2\pm5.2\) & \(74.1\pm2.4\) & \(72.3\pm1.2\)\\
+GATv2 & \(81.3\pm7.0\) & \(73.2\pm2.8\) & \(72.0\pm1.4\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The models were not parameter-matched, so this table provides context rather than isolating one architectural factor across all five models. The GAT row is the reference GAT, and the same GAT and GATv2 results are reused in the relevant research-question comparisons.
+
+\subsection{RQ1: Attention-Head Organisation}
+\label{sec:results-rq1}
+
+Table~\ref{tab:rq1-results} varies first-layer head count while keeping total width at 64. The eight-head row is the reference GAT from Table~\ref{tab:model-performance}.
+
+\begin{table}[!ht]
+\centering
+\caption{RQ1 outer-test accuracy (\%), mean \(\pm\) sample SD. Total first-layer width is fixed at 64.}
+\label{tab:rq1-results}
+\begin{tabular}{@{}rrccc@{}}
+\toprule
+Heads & Channels/head & MUTAG & PROTEINS & NCI1\\
+\midrule
+1 & 64 & \(76.5\pm7.2\) & \(73.9\pm2.8\) & \(71.3\pm1.4\)\\
+2 & 32 & \(77.1\pm5.5\) & \(73.4\pm1.9\) & \(72.5\pm1.0\)\\
+4 & 16 & \(75.5\pm5.1\) & \(73.9\pm2.4\) & \(72.1\pm1.0\)\\
+8 & 8 & \(79.2\pm5.2\) & \(74.1\pm2.4\) & \(72.3\pm1.2\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On MUTAG, the difference between the highest and lowest means is 3.7 percentage points, with eight heads giving the largest mean and substantial variation across folds. PROTEINS changes comparatively little, with all means within approximately 0.7 percentage points. NCI1 has the largest mean at two heads and the smallest at one head, spanning 1.2 percentage points. No dataset exhibits a monotonic accuracy trend as head count increases, and the organisation with the largest observed mean differs across datasets.
+
+\Needspace{16\baselineskip}
+\subsection{RQ2: GAT and GATv2}
+\label{sec:results-rq2}
+
+Table~\ref{tab:rq2-results} compares the reference GAT and corresponding GATv2 configuration. Paired differences are GATv2 minus GAT, calculated on aligned outer folds.
+
+\begin{table}[!ht]
+\centering
+\caption{RQ2 accuracy (\%) and paired accuracy difference in percentage points (pp). Entries are mean \(\pm\) sample SD; the difference is GATv2 minus GAT.}
+\label{tab:rq2-results}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Dataset & GAT & GATv2 & Difference (pp)\\
+\midrule
+MUTAG & \(79.2\pm5.2\) & \(81.3\pm7.0\) & \(+2.1\pm5.1\)\\
+PROTEINS & \(74.1\pm2.4\) & \(73.2\pm2.8\) & \(-0.9\pm0.8\)\\
+NCI1 & \(72.3\pm1.2\) & \(72.0\pm1.4\) & \(-0.3\pm0.9\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+MUTAG has a positive mean difference of 2.1 percentage points, although the paired fold differences change direction and have a sample SD of 5.1 percentage points. The mean difference is \(-0.9\) percentage points on PROTEINS and \(-0.3\) percentage points on NCI1. GATv2 therefore does not show a consistent accuracy advantage over GAT across the three datasets.
+
+\subsection{RQ3: Learned and Uniform Attention During Training}
+\label{sec:results-rq3}
+
+The uniform-attention GAT in Table~\ref{tab:rq3-results} was trained separately from scratch under uniform coefficients. The paired difference is learned GAT minus this separately trained uniform condition.
+
+\begin{table}[!ht]
+\centering
+\caption{RQ3 accuracy (\%) and paired difference in percentage points. Entries are mean \(\pm\) sample SD; the difference is learned minus separately trained uniform-attention GAT.}
+\label{tab:rq3-results}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Dataset & Learned GAT & Uniform-attention GAT & Difference (pp)\\
+\midrule
+MUTAG & \(79.2\pm5.2\) & \(80.8\pm4.5\) & \(-1.6\pm1.5\)\\
+PROTEINS & \(74.1\pm2.4\) & \(73.6\pm3.5\) & \(+0.5\pm1.9\)\\
+NCI1 & \(72.3\pm1.2\) & \(71.1\pm0.9\) & \(+1.2\pm0.8\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+MUTAG has the higher mean under separately trained uniform attention. Learned attention is lower on three folds and tied on two. PROTEINS shows little average separation and mixed paired directions. On NCI1, learned attention has a modest positive mean difference and is higher on all five aligned folds. The direction and size of the training-time comparison vary across datasets.
+
+\clearpage
+\subsection{RQ4: Fitted-Attention Characterisation and Intervention}
+\label{sec:results-rq4}
+
+The same selected reference GAT states were analysed first through coefficient departure from uniformity and then under the fitted uniform-scoring intervention. Table~\ref{tab:rq4-departure} reports the layer-level results for departure from uniformity, calculated as described in Equation~\eqref{eq:attention-departure}.
+
+\begin{table}[!ht]
+\centering
+\caption{RQ4 departure from uniformity \(D\), mean \(\pm\) sample SD across folds after averaging within graphs. The first layer has eight heads and the second one head.}
+\label{tab:rq4-departure}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Dataset & First-layer \(D\) & Second-layer \(D\)\\
+\midrule
+MUTAG & \(0.009\pm0.008\) & \(0.117\pm0.093\)\\
+PROTEINS & \(0.009\pm0.007\) & \(0.018\pm0.025\)\\
+NCI1 & \(0.027\pm0.011\) & \(0.282\pm0.075\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+First-layer coefficients remain close to uniform on average for all three datasets, with mean departure \(D=0.009\) on MUTAG and PROTEINS and \(D=0.027\) on NCI1. Second-layer departure differs more across datasets. PROTEINS remains close to uniform at \(D=0.018\), MUTAG shows greater departure at \(D=0.117\), and NCI1 has the largest value at \(D=0.282\). These values describe coefficient-distribution concentration, rather than predictive importance.
+
+Coefficient characterisation alone does not measure how predictions depend on learned scoring. Table~\ref{tab:rq4-intervention} reports the complementary intervention, which uniformised both layers without retraining. Changes use intervention minus learned fitted state; prediction-flip rate gives the percentage of outer-test graphs whose predicted class changed.
+
+\begin{table}[!ht]
+\centering
+\caption{RQ4 fitted uniform-scoring intervention, mean \(\pm\) sample SD. Positive cross-entropy changes and negative accuracy changes indicate deterioration. Both layers were changed simultaneously without retraining.}
+\label{tab:rq4-intervention}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Dataset & \(\Delta\) cross-entropy & \(\Delta\) accuracy (pp) & Prediction-flip rate (\%)\\
+\midrule
+MUTAG & \(+0.035\pm0.040\) & \(-1.1\pm4.9\) & \(10.7\pm7.4\)\\
+PROTEINS & \(+0.050\pm0.062\) & \(-5.7\pm8.4\) & \(13.3\pm14.3\)\\
+NCI1 & \(+0.423\pm0.144\) & \(-20.3\pm1.3\) & \(41.8\pm4.3\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+MUTAG shows a mean accuracy reduction of 1.1 percentage points, with a sample SD of 4.9 percentage points, alongside a mean prediction-flip rate of 10.7\%. PROTEINS has a larger mean reduction of 5.7 percentage points and a mean prediction-flip rate of 13.3\%, with particularly large variation across fitted fold states. NCI1 has the largest mean cross-entropy increase, \(0.423\pm0.144\), the largest accuracy reduction, \(20.3\pm1.3\) percentage points, and the largest prediction-flip rate, \(41.8\pm4.3\%\). Its accuracy decreases and cross-entropy increases on all five folds.
+
+The NCI1 comparison differs markedly between RQ3 and RQ4. Learned attention exceeds separately trained uniform attention by 1.2 percentage points, whereas uniformising the already fitted learned model reduces accuracy by 20.3 percentage points and changes 41.8\% of predictions. These results come from different experiments. RQ3 uses separate training under uniform attention, while RQ4 changes the attention scoring of an already fitted model.
+
+
+
+
+
+\clearpage
 \section{Discussion}
+\label{sec:discussion}
 
-\section{Limitations}
+The four research questions examine different aspects of graph attention. Taken together, the findings do not show that more flexible attention or learning unequal weights consistently improves graph-classification accuracy. Attention-head organisation, scorer expressivity, the value of learning unequal weights during training and the dependence of a fitted model on its learned scoring therefore need to be considered separately. The distinction between the separately trained control in RQ3 and the fitted intervention in RQ4 is particularly important.
 
+\subsection{RQ1: Attention-Head Organisation}
+\label{sec:discussion-rq1}
+
+Increasing first-layer head count did not produce a monotonic improvement in accuracy when total width was fixed. Eight heads gave the largest observed mean on MUTAG, PROTEINS changed little across configurations, and two heads gave the largest mean on NCI1. RQ1 therefore provides no evidence that dividing the representation among more heads generally improves prediction under this pipeline.
+
+Veli\v{c}kovi\'{c} et al.~\cite{velickovic2018gat} motivate multiple heads partly as a way to stabilise attention learning. The present experiment instead examines how a fixed representation width is divided among heads. If channels per head were held constant, increasing head count would also widen the concatenated representation. Fixing total width at 64 prevented that source of model growth, while preserving the total GAT parameter count within each dataset.
+
+The resulting constraint, \(Kq=64\), couples head count and per-head dimensionality. More heads provide more independently parameterised attention mechanisms, while fewer heads allocate a larger feature space to each mechanism. This is the trade-off examined in the experiment, but it does not explain why a particular configuration obtained a higher mean. Head diversity, redundancy and specialisation were not measured, and per-head dimensionality was not varied independently.
+
+Differences in graph distributions, input features, targets or optimisation could affect which allocation is useful. The experiment does not identify the responsible factor, and the substantial variation on MUTAG makes its observed ordering less certain. Four configurations with one training realisation per fold do not establish an optimal head count. Head count should therefore be considered alongside per-head width and total representation size.
+
+\subsection{RQ2: GAT and GATv2}
+\label{sec:discussion-rq2}
+
+GATv2 did not show a consistent predictive advantage over GAT under the implemented graph-classification pipeline. Its mean difference on MUTAG was positive, but the individual fold differences changed direction; PROTEINS and NCI1 had small negative mean differences. These results do not establish a general predictive ordering between the two configurations across the three datasets.
+
+Brody et al.~\cite{brody2022attentive} show that standard GAT has a static-ranking restriction, whereas GATv2 can represent query-dependent source rankings unavailable to GAT. This is a statement about the functions available to the attention scorer, not a guarantee of higher predictive accuracy. RQ2 instead measures the held-out accuracy of finite models learned under a particular graph-classification pipeline. Additional representational capacity does not necessarily improve accuracy if the task does not benefit from it or the fitted model does not use it effectively. The absence of a consistent GATv2 advantage therefore does not contradict the theoretical expressivity result.
+
+One possibility is that the additional query-dependent ranking flexibility was not important for these tasks under the studied configurations. Differences in finite-data learning or optimisation could also affect whether the additional flexibility is used beneficially. The experiment does not distinguish between these explanations, so they remain possible interpretations rather than measured mechanisms.
+
+The original GATv2 paper also reports empirical gains over GAT across several prediction settings, including controlled parameter-cost comparisons. These results show that dynamic attention can be useful in practice. The present study used different datasets, graph-level architecture, features, training and evaluation, so it examines the models in a different graph-classification setting rather than reproducing those experiments. A more expressive scorer can therefore offer an advantage without guaranteeing one under every configuration.
+
+A further limitation comes from the project's general-form GATv2, which had more parameters because it used separate source and receiver transformations. RQ2 changed both scoring family and parameterisation, so neither MUTAG's positive difference nor the negative differences elsewhere can be attributed solely to dynamic attention. The comparison remains informative about the two implemented models, while a parameter-matched GATv2 would better isolate the scoring change. Greater expressivity alone is therefore insufficient grounds for expecting an accuracy improvement.
+
+\subsection{RQ3: Learned and Uniform Attention During Training}
+\label{sec:discussion-rq3}
+
+Learning non-uniform attention did not provide a consistent predictive advantage over separately trained uniform attention. MUTAG had the higher mean under the uniform constraint, PROTEINS showed little average separation with mixed fold directions, and NCI1 showed a modest learned-attention advantage on every aligned fold. The value of permitting unequal weights was therefore dataset dependent within the studied configurations.
+
+The uniform-attention model could adapt its feature transformations, biases and classifier throughout optimisation. RQ3 consequently compared solutions learned under different constraints, assessing whether access to non-uniform weighting improved the resulting prediction function. A small gap between these solutions does not reveal whether the learned-attention solution itself used, or became dependent on, its scoring mechanism.
+
+On MUTAG, permitting non-uniform coefficients produced no observed predictive advantage under the studied configuration. PROTEINS provides descriptive evidence of closely separated means rather than a formal equivalence result. NCI1 provides the clearest positive result. The learned-attention gain is modest, but its direction is consistent across all five aligned folds. The experiment does not identify why the value of learned unequal weighting differs across the three datasets.
+
+Veli\v{c}kovi\'{c} et al.~\cite{velickovic2018gat} provide a useful comparison through Const-GAT. On the inductive PPI task, learned-attention GAT achieved a reported micro-F1 of \(0.973\pm0.002\), compared with \(0.934\pm0.006\) for Const-GAT. That experiment concerns multilabel node prediction across graphs rather than whole-graph classification, but it shows that unequal learned weighting can provide a clear predictive benefit in some settings. The present results indicate that the magnitude and even direction of that benefit do not transfer uniformly across graph-classification datasets.
+
+One plausible interpretation is that a uniformly constrained model can compensate for the missing weighting flexibility through its other trainable parameters, whereas learned unequal weighting may provide useful additional flexibility on some tasks. The present experiments do not directly measure such compensation or identify the properties that determine when it is useful. This opportunity to adapt during training is absent when the scoring mechanism of an already fitted model is changed without retraining. RQ3 therefore measures the predictive value of allowing non-uniform attention during optimisation, whereas RQ4 measures the dependence of a particular fitted solution on the scoring mechanism it learned.
+
+\subsection{RQ4: Fitted-Attention Characterisation and Intervention}
+\label{sec:discussion-rq4}
+
+Fitted attention behaviour varied by layer and dataset, and replacing learned scoring produced effects ranging from a small average accuracy change to substantial deterioration. The first layer remained close to uniform on average across all three datasets. Second-layer departure was more variable, with PROTEINS still close to uniform, MUTAG showing greater concentration and NCI1 showing the largest departure. NCI1 also had the strongest fitted intervention response.
+
+The coefficient analysis shows that freedom to learn non-uniform attention does not imply strongly concentrated coefficients in every layer. Later representations already contain neighbourhood information, which could make sources easier to distinguish through their features. This could help explain the larger second-layer departure on MUTAG and NCI1. However, the layers also differ in head organisation, with eight heads in the first and one in the second. The experiment therefore cannot attribute the observed difference specifically to network depth.
+
+Departure from uniformity measures the distribution of scalar coefficients. The GAT update also depends on the transformed source vectors, subsequent nonlinearities and graph-level classifier. Consequently, concentration alone does not quantify downstream influence, semantic importance or explanation faithfulness. The intervention instead measures how strongly the predictions of a fitted model change when its learned scoring is replaced while the remaining parameters are held fixed.
+
+MUTAG illustrates why the three intervention endpoints should be considered together. Replacing learned scoring changes 10.7\% of predictions on average, yet mean accuracy decreases by only 1.1 percentage points and the fold-level accuracy effects vary in direction. Calling the fitted model insensitive on the basis of aggregate accuracy alone would therefore miss changes in which individual graphs receive each predicted class. Some prediction changes improve correctness while others reduce it, allowing their effects to partially cancel in the accuracy total. The small positive cross-entropy change provides an additional indication that the fitted outputs were altered even when the average accuracy change was limited.
+
+PROTEINS shows a larger mean accuracy reduction of 5.7 percentage points, but the response varies considerably across the five fitted fold states. Accuracy change and prediction-flip rate both have large fold-to-fold variation despite the low average departure from uniformity. Different data partitions and optimisation trajectories may have produced fitted solutions with different reliance on learned scoring, but the experiment does not directly establish that explanation. The variation itself is therefore more informative than assigning a single fixed degree of attention dependence to PROTEINS.
+
+NCI1 shows the clearest fitted-model sensitivity. Uniformising scoring increased cross-entropy by \(0.423\pm0.144\), reduced accuracy by \(20.3\pm1.3\) percentage points and changed \(41.8\pm4.3\%\) of predictions. Cross-entropy increased and accuracy decreased on every fold. The selected NCI1 solutions were therefore strongly sensitive to this perturbation of their learned attention mechanism. This establishes a property of those fitted models, rather than a general requirement for learned attention in every NCI1 classifier.
+
+NCI1's large second-layer departure and large intervention response align descriptively. They do not identify a general concentration--sensitivity relationship from three datasets. PROTEINS already shows why the two quantities cannot be treated as interchangeable. Moreover, the intervention changed both layers simultaneously. Altered first-layer outputs became altered second-layer inputs, and their effects could interact. The accuracy loss cannot be assigned specifically to the more concentrated second layer.
+
+The comparison with RQ3 explains why fitted dependence must be measured separately. On NCI1, learned attention exceeded a separately trained uniform model by only 1.2 percentage points, while changing the fitted learned model caused a reduction of 20.3 percentage points. Separate training permits each model to adapt to its constraint; the intervention perturbs one solution without allowing the remaining parameters to readjust. Similar performance of separately optimised alternatives therefore does not imply that one can be converted into the other after training without loss.
+
+This contrast is consistent with co-adaptation. Attention scoring, feature transformations and the classifier were optimised jointly, so the learned model's remaining parameters may have become specialised to representations produced by its scoring. A separately trained uniform model could instead develop around uniform aggregation from the outset. The experiments are consistent with this explanation, but do not establish the parameter interactions or training dynamics needed to demonstrate it.
+
+RQ4 thus complements coefficient inspection with evidence of functional sensitivity. It also shows why prediction-flip rate is useful alongside accuracy and why retraining controls answer a different question from fitted interventions. Neither analysis validates individual coefficients as semantic or causal explanations. Together, they help explain why different aspects of attention need to be assessed separately.
+
+\subsection{Synthesis Across the Research Questions}
+\label{sec:synthesis}
+
+The four research questions examine attention from different perspectives. RQ1 concerns how a representation is divided among heads, RQ2 the scoring functions available, RQ3 the value of learning unequal weights during training, and RQ4 the coefficients and behaviour of fitted models. Their findings should therefore be considered together without treating these properties as interchangeable.
+
+RQ1 and RQ2 found no consistent improvement from increasing head count or using the more expressive GATv2 scorer. Dividing a fixed width among more heads produced no monotonic trend, and GATv2 did not consistently outperform GAT. This reinforces the difference between an architecture's capabilities and the performance of a fitted model on a particular task.
+
+RQ3 showed that the benefit of learning unequal weights varied across datasets. NCI1 provided a modest, fold-consistent advantage, while MUTAG and PROTEINS gave different outcomes. Yet RQ4 showed substantial fitted-model dependence on NCI1, where the 1.2-percentage-point retraining advantage contrasted with a 20.3-percentage-point accuracy reduction and a 41.8\% prediction-flip rate after intervention. The value of a mechanism during training and a fitted model's dependence on it are therefore different quantities.
+
+The findings also separate coefficient non-uniformity, predictive benefit during training and fitted-model sensitivity. These were measured through normalised entropy, separate training and intervention respectively. None of these measurements established that individual coefficients were semantic or causal explanations. The differences between layers further support this distinction, since coefficient behaviour varied within the same architecture and the joint intervention could not assign sensitivity to one layer.
+
+These distinctions also affect how attention should be evaluated. Head count should be considered alongside width, and scorer expressivity needs to be tested under the intended pipeline. Uniform retraining and fitted intervention provide complementary evidence, while coefficient concentration alone is not enough to explain predictions. The contrast between retraining and intervention is consistent with co-adaptation, rather than a contradiction between the experiments.
+
+Across the studied configurations, more heads, a more expressive scorer and learned non-uniform weighting did not produce consistent accuracy gains across datasets. However, particular fitted models were strongly affected when their learned scoring was replaced. The different aspects of attention examined here therefore cannot be judged through predictive accuracy or coefficient concentration alone.
+
+\subsection{Limitations and Future Work}
+\label{sec:limitations}
+
+The empirical scope is limited to MUTAG, PROTEINS and NCI1 with categorical node information and connectivity. This common representation controlled the information supplied to each model, but excluded potentially useful inputs such as MUTAG bond labels and the PROTEINS continuous attribute. The conclusions concern these representations rather than every feature policy or graph-classification task. Overall accuracy also does not show how prediction errors were distributed between the classes, which is relevant to the unequal class counts in MUTAG and PROTEINS. MUTAG's 188 graphs further mean that changing a few predictions can noticeably affect a fold's accuracy. Extending the comparisons to a broader range of graph datasets and repeating selected experiments with meaningful edge and continuous attributes would test their wider applicability.
+
+The shared two-layer, width-64 architecture and sum readout also define the scope of the findings. Depth, width, readout, regularisation and optimisation settings may alter the usefulness of attention. Fixing them made the comparisons easier to interpret, while limiting claims about fully optimised models. Controlled variation of these choices would extend the mechanism study; independent tuning of each family would address the different objective of comparing best-achievable predictive performance.
+
+Model selection was restricted to choosing an epoch by validation cross-entropy. The epoch budget was informed by development on the same benchmark collection, and no full inner cross-validation reselected all hyperparameters in each outer fold. Outer-test graphs remained excluded from fitting and state selection within their fold, but the results do not capture uncertainty from repeating the complete development process. Fully nested selection would be an appropriate extension if the intended claims shifted towards model-family superiority.
+
+There was one prescribed training realisation for each condition and fold. The observed standard deviations therefore combine partition and optimisation variation without estimating them separately. Matched seeds organise the comparisons but do not equate stochastic trajectories. In addition, overlapping fitting sets mean that the five fold assessments are not independent datasets. Their standard deviations are descriptive, and no significance or equivalence inference was performed. Repeating every condition under several independent training seeds is a high-priority extension, particularly for the small differences in RQ1--RQ3. Additional replication would be more informative than simply attaching significance tests to the existing five folds.
+
+Two experimental constraints limit isolation of architectural effects. RQ1 held total width and parameter count fixed, but changing head count also changed channels per head. A structured study varying both quantities, including fixed-total-width and fixed-per-head-width regimes, would distinguish their contributions. RQ2 matched depth, head organisation and the common pipeline, but its GATv2 had more parameters than GAT. A shared-transform, parameter-matched GATv2 comparison, alongside the general form already studied, would more closely separate scoring expressivity from parameter budget.
+
+RQ3's allowance for adaptation and RQ4's lack of retraining are complementary design choices. Future investigations should retain both when distinguishing what a constrained model can learn from what a particular fitted model depends on. RQ4 could be refined by intervening on the first layer alone, the second alone and both together, with head-specific interventions where appropriate. This would address the present inability to assign NCI1's deterioration to a particular layer or separate interactions between layers.
+
+Finally, coefficient departure and intervention sensitivity do not validate individual attention weights as explanations. If interpretation of graph structure becomes an objective, it requires dedicated evaluation of explanation quality. NCI1's alignment of concentration and sensitivity also provides only one pattern within a three-dataset study. Measuring both quantities over more datasets, fitted states and layer-specific interventions would test whether concentration statistics actually predict sensitivity.
+
+\enlargethispage{3\baselineskip}
+The most useful extensions would be to repeat training across several seeds, study more datasets and input representations, compare GAT and GATv2 with matched parameter budgets, and test separate layer interventions. These would help establish how stable and widely applicable the findings are.
+
+
+
+
+
+\clearpage
 \section{Conclusion}
+\label{sec:conclusion}
 
-% Temporary bibliography check for the empty skeleton.
-\nocite{kipf2017gcn,velickovic2018gat}
+This project investigated several aspects of graph attention for graph classification on MUTAG, PROTEINS and NCI1 under a common experimental pipeline. The experiments examined attention-head organisation, the comparison between GAT and GATv2, the value of learning non-uniform weighting during training, and the coefficient distributions and scoring dependence of fitted models. Together, they provide different views of how attention can affect graph-classification behaviour.
 
+Varying first-layer head count at fixed total width did not produce a monotonic improvement in accuracy, and the head organisation with the largest observed mean differed across datasets. GATv2 also provided no consistent predictive advantage over GAT. More heads and greater scorer expressivity therefore did not lead to consistent improvements in graph-classification accuracy under the tested configurations.
+
+Allowing non-uniform attention to be learned did not provide a consistent advantage over separately trained uniform attention. Uniform attention gave the higher observed mean on MUTAG, PROTEINS showed little average separation, and learned attention performed better on NCI1. Because the uniform models could adapt throughout optimisation, this comparison measured the value of making unequal neighbourhood weighting available during training.
+
+The fitted-model analysis provided a different perspective. First-layer coefficient distributions remained close to uniform on average, while second-layer departure varied more strongly across datasets. The effect of replacing learned scoring in both layers also varied across datasets. On NCI1, learned attention exceeded separately trained uniform attention by 1.2 percentage points, yet replacing learned scoring in the already fitted model reduced accuracy by 20.3 percentage points and changed 41.8\% of predictions. This contrast shows that a small predictive difference between separately trained alternatives can coexist with strong dependence of a particular fitted solution on its learned scoring.
+
+These findings are limited to the three datasets, chosen input representations and fixed model and evaluation settings. Within that scope, attention-head organisation, scorer expressivity, coefficient non-uniformity, training-time predictive utility and fitted-model dependence were distinct properties that should not be treated as interchangeable. Considering these properties separately provides a clearer picture of how attention matters in graph classification than treating it as a single architectural choice.
+
+
+
+
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{section}{References}
 \bibliographystyle{unsrtnat}
 \bibliography{references}
 
