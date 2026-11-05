@@ -1,212 +1,126 @@
+
 # Investigating Attention Mechanisms in Graph Neural Networks for Graph Classification
 
-EPSRC summer research internship at the University of Leicester.
+**EPSRC Summer Research Internship, University of Leicester**  
+**Researcher:** Aneesh  
+**Supervisor:** Dr Furqan Aziz
 
-Researcher: Aneesh  
-Supervisor: Dr Furqan Aziz
+This repository contains the code and experimental results for an investigation of attention mechanisms in graph classification. The main focus is on **GAT** and **GATv2**, with **GCN**, **GraphSAGE** and **GIN** included as reference models. Experiments use the **MUTAG**, **PROTEINS** and **NCI1** datasets. The full methodology and discussion are in the [research report](report/).
 
+## Research questions
 
+1. **RQ1:** How does the number of GAT attention heads affect classification accuracy at fixed total hidden width?
+2. **RQ2:** How does GAT compare with GATv2 under a shared graph-classification setup?
+3. **RQ3:** How does learned attention compare with a GAT trained using uniform neighbourhood weights?
+4. **RQ4:** How non-uniform are the attention weights in fitted GAT models, and what happens when their scoring is replaced by uniform weighting without retraining?
 
-## Purpose
+## Results
 
-Investigate graph attention design using GAT and GATv2, with GCN,
-GraphSAGE and GIN as contextual baselines, on MUTAG, PROTEINS and NCI1.
+The experiments include **135 cross-validation fits**: 75 reference-model fits, 45 additional head-count fits and 15 uniform-attention fits. RQ4 analyses the 15 selected reference GAT models without further training. The saved results and model states are available in [`results/`](results/).
 
-The four research questions concern fixed-width attention-head count,
-matched GAT and GATv2 models, uniform-attention retraining, and fitted
-attention characterisation with a uniform intervention without retraining.
+### Reference models
 
+Outer-test accuracy (%), mean ± sample standard deviation across five folds:
 
+| Model | MUTAG | PROTEINS | NCI1 |
+|:--|--:|--:|--:|
+| GCN | 77.58 ± 8.20 | 74.57 ± 2.73 | 71.41 ± 0.67 |
+| GraphSAGE | 79.73 ± 6.10 | 73.67 ± 3.17 | 73.38 ± 1.26 |
+| GIN | 81.35 ± 7.43 | 72.59 ± 3.28 | 73.38 ± 1.79 |
+| GAT | 79.23 ± 5.19 | 74.12 ± 2.37 | 72.31 ± 1.18 |
+| GATv2 | 81.34 ± 6.98 | 73.22 ± 2.78 | 71.97 ± 1.38 |
 
-## Development status
+### Attention comparisons
 
-The experimental implementation and all four attention investigations are
-complete. The saved evidence contains 135 cross-validation fits, each with
-a paired JSON record and validation-selected model state in results/:
+Mean paired accuracy differences (percentage points):
 
-- 75 reference fits across five models and three datasets.
-- 45 additional GAT fits with one, two or four first-layer heads.
-- 15 uniform-attention GAT fits.
+| Comparison | MUTAG | PROTEINS | NCI1 |
+|:--|--:|--:|--:|
+| GATv2 − GAT (RQ2) | +2.11 | −0.90 | −0.34 |
+| Learned − retrained uniform GAT (RQ3) | −1.59 | +0.54 | +1.22 |
+| Uniform intervention − fitted GAT (RQ4) | −1.10 | −5.75 | −20.32 |
 
-The eight-head GAT and GATv2 reference results are reused in the relevant
-comparisons. Fitted-attention analysis and intervention reuse the 15 selected
-reference GAT states without additional optimisation. The analysis covers
-every graph once in its corresponding outer-test fold and is preserved in
-results/rq4_fitted_gat_attention.json.
+For RQ1, eight heads gave the highest observed mean accuracy on MUTAG and PROTEINS, while two heads gave the highest on NCI1. Overall, the effect of attention design varied by dataset. In particular, training a separate uniform-attention model (RQ3) produced different results from changing attention scoring after fitting (RQ4). The report covers the fold-level results, attention measurements and limitations.
 
-The report directory currently contains the LaTeX skeleton and bibliography;
-substantive report writing remains to be completed.
+## Installation
 
+The experiments were carried out on Windows 11 with Python 3.14.7 and an NVIDIA RTX 4070 Laptop GPU. The Python dependencies are listed in [`requirements.txt`](requirements.txt).
 
-
-## Code and records
-
-- src/ contains dataset loading and partitioning, model definitions, training,
-  evaluation and result recording.
-- experiments/train_cv.py owns the shared assessment settings and runs the
-  reference cross-validation matrix.
-- experiments/result_validation.py provides the shared checks for saved
-  cross-validation groups, partitions, predictions and runtime conditions.
-- experiments/summarise.py validates the reference, head-count and uniform
-  groups, then reports the reference and RQ1 through RQ3 summaries. These
-  include all five fold accuracies, their unweighted mean and sample standard
-  deviation, paired accuracy differences, parameter counts and training times.
-- experiments/ablation.py defines the attention variants and reuses the same
-  settings and cross-validation function. Running this module directly only
-  prints the variant definitions and example result paths.
-- experiments/runners/train_heads.py runs the additional head-count fits.
-- experiments/runners/train_uniform.py runs the uniform-attention fits.
-- experiments/analyse_fitted_gat.py performs RQ4 attention characterisation
-  and intervention using the selected reference GAT states. It saves graph
-  records, fold results and dataset summaries in one JSON file.
-- experiments/inspections/ contains methodological inspections, with dataset
-  and model inspections in its datasets/ and models/ subdirectories. The
-  epoch-budget inspection retains its historical development-only settings.
-- archive/src/ and archive/experiments/ preserve superseded implementations,
-  including the original development train.py and two-value evaluator. These
-  are historical source records; active code does not import them.
-- results/ contains the saved evidence and selected model states.
-- report/ contains the LaTeX source and bibliography.
-
-
-
-## Cross-validation protocol
-
-The reference matrix contains GCN, GraphSAGE, GIN, GAT and GATv2 on MUTAG,
-PROTEINS and NCI1. Five stratified outer folds and one fresh fit per fold give
-75 reference fits. Each fold uses approximately 70% of the dataset for
-fitting, 10% for validation and 20% for outer-test assessment. The same
-partitions are reused across models and variants.
-
-Every valid fit runs for 500 epochs with batch size 32 and Adam, using a
-learning rate of 0.01 and weight decay of 0.0005. The state with the lowest
-validation cross-entropy is restored before one outer-test assessment;
-the earliest epoch wins an exact tie. Non-finite training, validation or
-outer-test loss raises an error.
-
-The 500-epoch budget was informed by a 27-trajectory development-validation
-audit on the same benchmark datasets later used for CV. It was fixed before
-any CV results existed, without using development-test scores. This prior
-use of the benchmark data is part of the methodology and limits claims of
-assessment independence.
-
-The additional head-count and uniform-attention fits bring the completed
-matrix to 135 fits. RQ1 varies first-layer heads through 1, 2, 4 and 8 at a
-fixed total width of 64. RQ2 compares GAT with general-form GATv2 using
-share_weights=False in both layers. RQ3 trains fresh GAT models with the
-attention-scoring tensors zeroed and frozen in both layers.
-
-RQ4 characterises the fitted reference GAT coefficients in each layer using
-one minus normalised attention entropy. Receivers with only one incoming
-entry are excluded from entropy and retained as counts. The intervention
-zeros the attention-scoring tensors in both layers while preserving the
-remaining fitted parameters. It records changes in cross-entropy and
-accuracy, defined as intervention minus learned, and the prediction-flip
-rate. This measures fitted-model behaviour and sensitivity, without
-establishing explanation faithfulness or domain causality.
-
-Accuracy summaries use the arithmetic mean and sample standard deviation
-across five outer folds. Accuracy differences are expressed in percentage
-points. Training time covers training passes only, including data loading,
-device transfers and optimisation, and excludes validation, test evaluation
-and result saving. It is distinct from complete program elapsed time.
-
-
-
-## Running the code
-
-Run modules from the repository root in the configured environment.
-Summarise the saved reference results and RQ1 through RQ3 with:
+From PowerShell:
 
 ```powershell
-python -m experiments.summarise
-```
-
-This reads the existing records and validates them against the loaded
-datasets. Dataset files are downloaded on first use if they are not already
-available. It does not train models or repeat model inference.
-
-RQ4 already has saved summaries in results/rq4_fitted_gat_attention.json.
-To print them using the existing table formatter, start Python from the
-repository root:
-
-```powershell
-python
-```
-
-Then enter:
-
-```python
-import json
-from experiments.analyse_fitted_gat import print_summary
-
-with open("results/rq4_fitted_gat_attention.json", encoding="utf-8") as result_file:
-    result = json.load(result_file)
-
-print_summary(result["datasets"])
-exit()
-```
-
-This prints the saved fold values, means, sample standard deviations and
-receiver counts without repeating attention extraction or model inference.
-
-The partition and ablation inspections do not train models:
-
-```powershell
-python -m experiments.inspections.inspect_cv_splits
-python -m experiments.ablation
-```
-
-The following commands produce the 75 reference fits, 45 additional
-head-count fits and 15 uniform-attention fits respectively:
-
-```powershell
-python -m experiments.train_cv
-python -m experiments.runners.train_heads
-python -m experiments.runners.train_uniform
-```
-
-After the reference states are available, the following command performs
-RQ4 attention extraction and intervention evaluation without retraining:
-
-```powershell
-python -m experiments.analyse_fitted_gat
-```
-
-The repository already contains the completed results, so the training and
-RQ4 analysis commands will refuse their existing output paths. Use the
-saved-result commands above to reproduce the numerical summaries.
-
-Git must be available for recorded fits and analysis because their source
-commit is captured in the output. Commit the source and effective settings
-and confirm a clean working tree before starting a recorded execution.
-
-Each fit saves a paired JSON record and validation-selected .pt state.
-Existing result or state paths are checked before fitting each model/dataset
-group. Completed groups must be excluded explicitly when continuing a
-partially completed matrix. Any deliberate rerun must preserve the original
-evidence, use unused output paths and record its reason. Record results
-after execution, retaining the source commit that produced the evidence.
-
-
-
-## Environment setup
-
-Verified with Python 3.14.7 on Windows 11, using an NVIDIA GeForce
-RTX 4070 Laptop GPU and NVIDIA driver 616.64.
-
-Install Python 3.14, 64-bit, if it is not already available.
-Python must be installed before creating the virtual environment.
-
-From the project root, run these commands in PowerShell:
-
-```powershell
+git clone https://github.com/aneesh-p22/Investigating-Attention-Mechanisms-In-Graph-Neural-Networks-For-Graph-Classification---Infinity.git
+cd Investigating-Attention-Mechanisms-In-Graph-Neural-Networks-For-Graph-Classification---Infinity
 py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ```
 
-requirements.txt records the verified package versions and the additional
-package index needed for the CUDA 13.0 PyTorch build.
+The datasets are loaded through PyTorch Geometric's `TUDataset` and downloaded when first needed.
 
-The virtual environment and downloaded datasets are excluded from Git.
+## Reproducing the results
+
+### Saved results
+
+To validate the saved records and reproduce the reference and RQ1–RQ3 summaries:
+
+```powershell
+python -m experiments.summarise
+```
+
+To print the saved RQ4 summary:
+
+```powershell
+python -c "import json; from experiments.analyse_fitted_gat import print_summary; print_summary(json.load(open('results/rq4_fitted_gat_attention.json', encoding='utf-8'))['datasets'])"
+```
+
+Both commands use stored measurements and do not retrain the models.
+
+### Rerunning the experiments
+
+The training scripts do not overwrite saved results. For an independent rerun, create a **separate clone** and remove the committed results from that copy only:
+
+```powershell
+git clone https://github.com/aneesh-p22/Investigating-Attention-Mechanisms-In-Graph-Neural-Networks-For-Graph-Classification---Infinity.git gnn-reproduction
+cd gnn-reproduction
+git switch -c reproduction
+git rm -r results
+git commit -m "Prepare independent reproduction"
+```
+
+Set up the Python environment in this clone as above, then run:
+
+```powershell
+python -m experiments.train_cv
+python -m experiments.runners.train_heads
+python -m experiments.runners.train_uniform
+python -m experiments.summarise
+python -m experiments.analyse_fitted_gat
+```
+
+The first three commands train the 135 models. The final command analyses the newly trained reference GAT states. Git must be configured because the result records include the source commit. Exact numerical results may vary across environments.
+
+## Experimental setup
+
+All models use two message-passing layers, hidden width 64, ReLU activations, global sum pooling and a linear graph classifier. Inputs consist of categorical node labels and graph connectivity, without additional node or edge attributes.
+
+Evaluation uses **five stratified outer folds** with approximately **70% training, 10% validation and 20% testing** in each fold. Each model is trained for **500 epochs** using Adam, batch size **32**, learning rate **0.01** and weight decay **0.0005**. The model state with the lowest validation cross-entropy is selected for outer-test evaluation. The same partitions are used across models and variants.
+
+RQ1 compares **1, 2, 4 and 8 heads** at total width 64. RQ2 uses standard GAT and general-form GATv2 (`share_weights=False`). RQ3 trains a separate GAT with uniform attention in both layers. RQ4 measures departure from uniform attention and performs a uniform-scoring intervention on fitted GAT states without retraining.
+
+The common epoch budget was informed by earlier validation experiments on the same benchmark datasets, so the final evaluation is not entirely independent of development decisions. Other methodological limitations are discussed in the report.
+
+## Repository structure
+
+| Directory | Contents |
+|:--|:--|
+| [`src/`](src/) | Models, data loading, training and evaluation |
+| [`experiments/`](experiments/) | Experiment scripts, analysis and result summaries |
+| [`results/`](results/) | Result records and selected model states |
+| [`report/`](report/) | Final report and references |
+| [`log/`](log/) | Research and development records |
+| [`archive/`](archive/) | Earlier implementations, not used by the final experiments |
+
+## Licence
+
+Released under the [MIT License](LICENSE). Third-party libraries and datasets retain their own licences.
